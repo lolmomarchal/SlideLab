@@ -139,15 +139,16 @@ def normalize_tiles(tile_information, result_path):
     path = os.path.join(result_path, "normalized_tiles")
     df_list = []
     columns = ['patient_id', 'x', 'y', 'magnification', 'path_to_slide']
-
+    os.makedirs(os.path.join(result_path, "normalized_tiles"), exist_ok=True)
     for i, row in tiles.iterrows():
         path_to_tile = row["path_to_slide"]
         mag = row["magnification"]
+
         y = row["y"]
         x = row["x"]
         try:
+            tile = np.array(Image.open(path_to_tile))
             if tile is not None:
-                tile = np.array(Image.open(path_to_tile))
                 tile = normalization.normalizeStaining(tile)
                 tile = Image.fromarray(tile)
                 tile.save(os.path.join(path, f"tile_w{x}_h{y}_mag{mag}.png"))
@@ -165,7 +166,7 @@ def normalize_tiles(tile_information, result_path):
         except Exception as e:
             print(f"An error occurred: {e}")
     df = pd.DataFrame(df_list, columns=columns)
-    df.to_csv(os.path.join(result_path, "normalized_tile_information.csv"), index=False)
+    df.to_csv(os.path.join(result_path, "normalized_tile_information2.csv"), index=False)
     del df
     gc.collect()
 
@@ -218,7 +219,7 @@ def preprocessing(path, result_path):
         tile_inf_path = os.path.join(result_path, "tile_information.csv")
         if not os.path.isfile(tile_inf_path):
             tiling(slide, result_path)
-        normalize_tiles_path = os.path.join(result_path, "normalized_tile_information.csv")
+        normalize_tiles_path = os.path.join(result_path, "normalized_tile_information2.csv")
         if not os.path.isfile(normalize_tiles_path):
             normalize_tiles(tile_inf_path, result_path)
         masked_tiles_path = os.path.join(result_path, "masked_tile_information.csv")
@@ -239,7 +240,7 @@ def main():
         path = r"C:\Users\albao\Downloads\gdc_download_20240320_111546.230274"  # Provide default input path here
     result_path = input("Enter result path (or leave blank for default): ").strip()
     if not result_path:
-        result_path = r"C:\Users\albao\Masters\WSI_results"  # Provide default result path here
+        result_path = r"C:\Users\albao\Masters\WSI_adjusted"  # Provide default result path here
     processes = input("Please enter number of threads for multiprocessing(leave blank for no multiprocessing): ").strip()
     if not processes:
         processes = 1

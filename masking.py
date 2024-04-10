@@ -9,14 +9,36 @@ from PIL import Image
 import tifffile as tiff
 import matplotlib.pyplot as plt
 
-def threshold(img, method = "otsu"):
+def threshold(img, method="otsu", kernel_size=None):
+    """
+    Perform thresholding on an image.
+
+    Params:
+        img: Input image
+        method: Thresholding method ('otsu' or 'triangle')
+        kernel_size: Size of the kernel for morphological operations
+    Returns:
+        thres: Threshold value
+        thres_img: Thresholded image
+        img_c: Grayscale image
+    """
     grayscale_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     img_c = 255 - grayscale_img
     thres, thres_img = 0, img_c.copy()
+
     if method == 'otsu':
         thres, thres_img = cv2.threshold(img_c, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     elif method == 'triangle':
-        thres, thres_img = cv2.threshold(img_c, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_TRIANGLE)
+        thres, thres_img = cv2.threshold(img_c, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_TRIANGLE)
+
+    # Apply morphological operations with the provided kernel size
+    if kernel_size is None:
+        kernel_size = 15
+    else:
+        kernel_size = 0
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_size, kernel_size))
+    thres_img = cv2.morphologyEx(thres_img, cv2.MORPH_CLOSE, kernel)
+
     return thres, thres_img, img_c
 
 def remove_small_objects(binary_mask, min_size=None, default=True, avoid_overmask=True, overmask_thresh=95, kernel_size= 1):

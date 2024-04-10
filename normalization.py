@@ -12,7 +12,7 @@ def normalizeStaining(img, saveFile=None, Io=240, alpha=1, beta=0.15):
     # reshape image
     img = img.reshape((-1,3))
     # calculate optical density
-    OD = -np.log((img.astype(np.float)+1)/Io)
+    OD = -np.log((img.astype(np.float64) + 1) / Io)
     # remove transparent pixels
     ODhat = OD[~np.any(OD<beta, axis=1)]
 
