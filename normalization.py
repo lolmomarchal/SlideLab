@@ -7,12 +7,17 @@ def normalizeStaining(img, saveFile=None, Io=240, alpha=1, beta=0.15):
                       [0.4062, 0.5581]])
 
     maxCRef = np.array([1.9705, 1.0308])
+
+    img = np.array(img)
     # define height and width of image
     h, w, c = img.shape
+
     # reshape image
     img = img.reshape((-1,3))
+
     # calculate optical density
-    OD = -np.log((img.astype(np.float64) + 1) / Io)
+    OD = -np.log((img.astype(float)+1)/Io)
+
     # remove transparent pixels
     ODhat = OD[~np.any(OD<beta, axis=1)]
 

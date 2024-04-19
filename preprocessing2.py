@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from multiprocessing import Pool
 import normalization
-
+import encoding
 
 
 OPENSLIDE_PATH = r"C:\Users\albao\Downloads\openslide-win64-20231011\openslide-win64-20231011\bin"
@@ -40,7 +40,7 @@ preprocessing.py
 
 Author: Lorenzo Olmo Marchal
 Created: March 12, 2024
-Last Updated:  April 10, 2024
+Last Updated:  April 17, 2024
 
 Description:
 This script automates the preprocessing and normalization of Whole Slide Images (WSI) in digital pathology. 
@@ -57,6 +57,15 @@ Future Directions:
 - Integration of machine learning algorithms for automated tile selection and quality control
 - Support for parallel processing on distributed computing platforms for handling large-scale WSI datasets efficiently
 """
+
+
+
+def best_size(slide):
+    natural_mag  = slide.info.objective_power
+    if natural_mag == 40:
+        return 512
+    else:
+        return 256
 def whole_slide_image(slide_path):
     try:
         ts = WSIReader.open(input_img = slide_path)
@@ -65,33 +74,28 @@ def whole_slide_image(slide_path):
         print(f"An error occurred: {e}")
         ts = None
     return ts
-def tiling(ts, result_path, overlap=False, stride=512):
+def tiling(ts, result_path, mask, overlap=False, stride=512):
     # Make tile dir
     tiles = os.path.join(result_path, "tiles")
     columns = ['patient_id', 'x', 'y', 'magnification', 'path_to_slide']
     df_list = []
     os.makedirs(os.path.join(result_path, "tiles"), exist_ok=True)
 
-    size = 512
+    size = best_size(ts)
     if overlap != False:
         stride = stride
     else:
         stride = size
     mag = 20
     w,h = ts.info.slide_dimensions
-    print(w)
     for x in range(0, w - size + 1, stride):
         for y in range(0, h - size + 1, stride):
             if x <= w - size and y <= h - size:
                 tissue_rgb= ts.read_rect(location = (x,y), size = (size, size), resolution = mag, units = "power")
                 # get mask of tile
-                tile_mask = masking.tile_mask(tissue_rgb)
-                tile_mask_clean = masking.remove_small_objects(np.copy(tile_mask))
-                tile_mask_clean = masking.remove_small_objects(~np.copy(tile_mask))
-                tile_mask_clean = 255- tile_mask_clean
-                #see if background
-                background = masking.is_background(tile_mask, tissue_rgb)
-                if  masking.is_background(tile_mask, tissue_rgb) == False and masking.is_background(tile_mask_clean, tissue_rgb) == False:  # Check if the tile is not a background
+                tile_mask = masking.get_region_mask(mask, (x, y), (size, size))
+                istissue = masking.is_tissue(tile_mask)
+                if  istissue == True:
                     tile = Image.fromarray(tissue_rgb)
                     tile.save(os.path.join(tiles, f"tile_w{x}_h{y}_mag{mag}.png"))
                     df_list.append({
@@ -188,7 +192,6 @@ def move_svs_files(main_directory, results_path):
                     # Move the SVS file to the main directory
                     shutil.move(svs_file_path, main_directory)
 
-
 def patient_csv(main_directory, results_path):
     csv_file_path = os.path.join(results_path, "patient_files.csv")
 
@@ -199,7 +202,7 @@ def patient_csv(main_directory, results_path):
 
             if file.endswith(".svs"):
 
-                patient_id = file.split("-")[2] + "-" + file.split("-")[3] + "-" + file.split("-")[4] + "-" + \
+                patient_id = file.split("-")[0] + "-" +file.split("-")[1] + "-" +file.split("-")[2] + "-" + file.split("-")[3] + "-" + file.split("-")[4] + "-" + \
                              file.split("-")[5]
                 patient_id = patient_id.split(".")[0]
                 patient_result_path = os.path.join(results_path, patient_id)
@@ -211,28 +214,34 @@ def patient_csv(main_directory, results_path):
     return csv_file_path
 
 
-def preprocessing(path, result_path):
+def preprocessing(path, patient_path, encoder_path, patient_id):
     slide = whole_slide_image(path)
+
     print(f"processing: {path}")
     if slide is not None:
-        wsi_thumb =slide.slide_thumbnail(resolution=1, units="power")
+        wsi_thumb = masking.get_thumbnail(openslide.OpenSlide(path))
         #getting mask for sanity check
-        mask = masking.get_whole_slide_mask(wsi_thumb, result_path)
-        tile_inf_path = os.path.join(result_path, "tile_information.csv")
+        mask = masking.get_whole_slide_mask(wsi_thumb, patient_path)
+
+        tile_inf_path = os.path.join(patient_path, "tile_information.csv")
         if not os.path.isfile(tile_inf_path):
-            tiling(slide, result_path)
-        normalize_tiles_path = os.path.join(result_path, "normalized_tile_information2.csv")
+            tiling(slide, patient_path, mask)
+        normalize_tiles_path = os.path.join(patient_path, "normalized_tile_information2.csv")
         if not os.path.isfile(normalize_tiles_path):
-            normalize_tiles(tile_inf_path, result_path)
-        masked_tiles_path = os.path.join(result_path, "masked_tile_information.csv")
-        if not os.path.isfile(masked_tiles_path):
-            mask_tiles(tile_inf_path, result_path)
+            normalize_tiles(tile_inf_path, patient_path)
+        # do encoding
+        encoding.encode_tiles(patient_id, normalize_tiles_path,  r"C:\Users\albao\Masters\WSI_proper\encoded")
+
+        # masked_tiles_path = os.path.join(result_path, "masked_tile_information.csv")
+        # if not os.path.isfile(masked_tiles_path):
+        #     mask_tiles(tile_inf_path, result_path)
 
 def preprocess_patient(row):
+    encoder_path = os.path.join( r"C:\Users\albao\Masters\WSI_proper", "encoded")
     result = row["Preprocessing Path"]
     original = row["Original Slide Path"]
     patient_id = row["Patient ID"]
-    preprocessing(original, result)
+    preprocessing(original, result, encoder_path, patient_id)
     print(f"done with patient {patient_id}")
 
 def main():
@@ -240,6 +249,7 @@ def main():
     path = input("Enter input path (or leave blank for default): ").strip()
     if not path:
         path = r"C:\Users\albao\Downloads\gdc_download_20240320_111546.230274"  # Provide default input path here
+    global result_path
     result_path = input("Enter result path (or leave blank for default): ").strip()
     if not result_path:
         result_path = r"C:\Users\albao\Masters\WSI_proper"  # Provide default result path here
@@ -247,9 +257,8 @@ def main():
     if not processes:
         processes = 1
 
-    # for TCGA project patient ID:
-    #  ex: "TCGA-BH-A0BC-01A-02-TSB.a7afb5f2-2676-428b-95c4-5b8764004820.svs"  would be "A0BC-01A-02-TSB"
-    # Perform preprocessing
+    if not os.path.exists(os.path.join(result_path, "encoded")):
+            os.makedirs(os.path.join(result_path, "encoded"))
 
     move_svs_files(path, result_path)
     patient_path = patient_csv(path, result_path)
@@ -258,8 +267,6 @@ def main():
 
     with multiprocessing.Pool(processes= processes, maxtasksperchild= 1) as pool:
         results = pool.map(preprocess_patient, (row for _, row in patients.iterrows()))
-
-
 
 if __name__ == "__main__":
     main()
