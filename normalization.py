@@ -1,14 +1,12 @@
 from PIL import Image
 import argparse
 import numpy as np
-def normalizeStaining(img, saveFile=None, Io=240, alpha=1, beta=0.15):
+def normalizeStaining(img, saveFile, Io=240, alpha=1, beta=0.15):
     HERef = np.array([[0.5626, 0.2159],
                       [0.7201, 0.8012],
                       [0.4062, 0.5581]])
 
     maxCRef = np.array([1.9705, 1.0308])
-
-    img = np.array(img)
     # define height and width of image
     h, w, c = img.shape
 
@@ -69,6 +67,7 @@ def normalizeStaining(img, saveFile=None, Io=240, alpha=1, beta=0.15):
     E = np.multiply(Io, np.exp(np.expand_dims(-HERef[:,1], axis=1).dot(np.expand_dims(C2[1,:], axis=0))))
     E[E>255] = 254
     E = np.reshape(E.T, (h, w, 3)).astype(np.uint8)
+    Image.fromarray(Inorm).save(saveFile)
 
 
     return Inorm
