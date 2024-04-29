@@ -86,11 +86,12 @@ def tiling(ts, result_path, mask, overlap=False, stride=256):
                     tile = Image.fromarray(tile)
                     tile.save(os.path.join(tiles, f"tile_w{x}_h{y}_mag{mag}.png"))
                     df_list.append({
-                        'patient_id': "result1",
+                        'patient_id': ts.id,
                         'x': x,
                         'y': y,
-                        'magnification': mag,
-                        'path_to_slide': os.path.join(tiles, f"tile_w{x}_h{y}_mag{mag}.png")
+                        'magnification': ts.magnification,
+                        'size': size ,
+                        'path_to_slide': os.path.join(tiles, f"{ts.id}_tile_w{x}_h{y}_mag{mag}_size{size}.png")
                     })
     df = pd.DataFrame(df_list, columns=columns)
     df.to_csv(os.path.join(result_path, "tile_information.csv"), index=False)
@@ -106,20 +107,22 @@ def normalize_tiles(tile_information, result_path):
     for i, row in tiles.iterrows():
         path_to_tile = row["path_to_slide"]
         mag = row["magnification"]
-
+        size = row["size"]
         y = row["y"]
         x = row["x"]
+        id = row["patient_id"]
         try:
             tile = np.array(Image.open(path_to_tile))
             if tile is not None:
-                tile = normalization.normalizeStaining(tile[:, :, :3], os.path.join(path, f"tile_w{x}_h{y}_mag{mag}.png"))
+                tile = normalization.normalizeStaining(tile, os.path.join(path, f"{id}_tile_w{x}_h{y}_mag{mag}_size{size}.png"))
 
                 df_list.append({
-                    'patient_id': "result1",
+                    'patient_id': id,
                     'x': x,
                     'y': y,
                     'magnification': mag,
-                    'path_to_slide': os.path.join(path, f"tile_w{x}_h{y}_mag{mag}.png")
+                    'size': size ,
+                    'path_to_slide': os.path.join(tiles, f"{id}_tile_w{x}_h{y}_mag{mag}_size{size}.png")
                 })
 
             else:
@@ -128,7 +131,7 @@ def normalize_tiles(tile_information, result_path):
         except Exception as e:
             print(f"An error occurred: {e}")
     df = pd.DataFrame(df_list, columns=columns)
-    df.to_csv(os.path.join(result_path, "normalized_tile_information2.csv"), index=False)
+    df.to_csv(os.path.join(result_path, "normalized_tile_information.csv"), index=False)
     del df
     gc.collect()
 
