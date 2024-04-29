@@ -84,7 +84,7 @@ def tiling(ts, result_path, mask, overlap=False, stride=256):
 
                     # Create a Pillow image from the numpy array
                     tile = Image.fromarray(tile)
-                    tile.save(os.path.join(tiles, f"tile_w{x}_h{y}_mag{mag}.png"))
+                    tile.save(os.path.join(tiles, f"{ts.id}_tile_w{x}_h{y}_mag{mag}_size{size}.png"))
                     df_list.append({
                         'patient_id': ts.id,
                         'x': x,
@@ -185,7 +185,7 @@ def preprocessing(path, patient_path, encoder_path, patient_id):
         if not os.path.isfile(tile_inf_path):
             tiling(Tissue, patient_path, mask)
         #
-        normalize_tiles_path = os.path.join(patient_path, "normalized_tile_information2.csv")
+        normalize_tiles_path = os.path.join(patient_path, "normalized_tile_information.csv")
         if not os.path.isfile(normalize_tiles_path):
             normalize_tiles(tile_inf_path, patient_path)
 
