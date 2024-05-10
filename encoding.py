@@ -17,22 +17,19 @@ from encoders.CONCH.conch.open_clip_custom import create_model_from_pretrained
 
 def encoder(encoder_type = 0):
     if encoder_type == 0:
-       encoder_model = models.resnet50(pretrained = True)
-       encoder_model = torch.nn.Sequential(*list(encoder_model.children())[:-1])
-       # encoder_model.add_module("GlobalAvgPool", torch.nn.AdaptiveAvgPool2d((1, 1)))
-       # encoder_model.add_module("Flatten", torch.nn.Flatten())
-       encoder_model.eval()
-       return encoder_model
+        encoder_model = models.resnet50(weights=ResNet50_Weights.DEFAULT)
+        # Remove the last fully connected layer
+        encoder_model = torch.nn.Sequential(*list(encoder_model.children())[:-1])
+        encoder_model.eval()
+    # option 1 : histopathology trained
+    return encoder_model
 
-    # elif encoder_type == 1:
-    # else:
 
 def encode_tiles(patient_id,tile_path, result_path):
     encoder_model = encoder(encoder_type = 0)
     patient_tiles = {}
     read = pd.read_csv(tile_path)
-    preprocess = transforms.Compose([transforms.Resize((512, 512)),  # Resize the image to fit ResNet-50 input size
-                                     transforms.ToTensor()])
+    preprocess = transforms.Compose([transforms.ToTensor()])
     for i, row in read.iterrows():
         # get individual patients
         path_to_tile = row["path_to_slide"]
