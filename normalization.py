@@ -7,22 +7,16 @@ def normalizeStaining(img, saveFile, Io=240, alpha=1, beta=0.15):
                       [0.4062, 0.5581]])
 
     maxCRef = np.array([1.9705, 1.0308])
-    # define height and width of image
     h, w, c = img.shape
 
     # reshape image
     img = img.reshape((-1,3))
 
-    # calculate optical density
     OD = -np.log((img.astype(float)+1)/Io)
 
-    # remove transparent pixels
     ODhat = OD[~np.any(OD<beta, axis=1)]
 
-    # compute eigenvectors
     eigvals, eigvecs = np.linalg.eigh(np.cov(ODhat.T))
-
-    #eigvecs *= -1
 
     #project on the plane spanned by the eigenvectors corresponding to the two
     # largest eigenvalues
@@ -54,7 +48,6 @@ def normalizeStaining(img, saveFile, Io=240, alpha=1, beta=0.15):
     tmp = np.divide(maxC,maxCRef)
     C2 = np.divide(C,tmp[:, np.newaxis])
 
-    # recreate the image using reference mixing matrix
     Inorm = np.multiply(Io, np.exp(-HERef.dot(C2)))
     Inorm[Inorm>255] = 254
     Inorm = np.reshape(Inorm.T, (h, w, 3)).astype(np.uint8)

@@ -1,32 +1,24 @@
-import os.path
-
-import numpy as np
+import os
+import pickle
 import pandas as pd
 import torch
-import torch.nn as nn
-import torch.nn.functional
-import torchvision
 import torchvision.models as models
-from torchvision.models import ResNet50_Weights
-import pickle
 import torchvision.transforms as transforms
-# for pathology encoder
 from PIL import Image
-from encoders.CONCH.conch.open_clip_custom import create_model_from_pretrained
+from torchvision.models import ResNet50_Weights
 
-
-def encoder(encoder_type = 0):
+def encoder(encoder_type=0, device='cpu'):
     if encoder_type == 0:
         encoder_model = models.resnet50(weights=ResNet50_Weights.DEFAULT)
         # Remove the last fully connected layer
         encoder_model = torch.nn.Sequential(*list(encoder_model.children())[:-1])
         encoder_model.eval()
-    # option 1 : histopathology trained
+        encoder_model.to(device)
+    # option 1: histopathology trained
     return encoder_model
 
-
-def encode_tiles(patient_id,tile_path, result_path):
-    encoder_model = encoder(encoder_type = 0)
+def encode_tiles(patient_id, tile_path, result_path, device='cpu'):
+    encoder_model = encoder(encoder_type=0, device=device)
     patient_tiles = {}
     read = pd.read_csv(tile_path)
     preprocess = transforms.Compose([transforms.ToTensor()])
@@ -36,14 +28,13 @@ def encode_tiles(patient_id,tile_path, result_path):
         try:
             tile = Image.open(path_to_tile)
             if tile is not None:
-                tile = preprocess(tile)
-                tile = tile.unsqueeze(0)
+                tile = preprocess(tile).unsqueeze(0).to(device)
                 with torch.no_grad():
                     encoded_features = encoder_model(tile)
-                patient_tiles[path_to_tile] = encoded_features
-        except:
-            print("tile is none")
-    patient_results = os.path.join(result_path, patient_id)
+                patient_tiles[path_to_tile] = encoded_features.cpu()  # Move tensor to CPU before saving
+        except Exception as e:
+            print(f"Error processing tile {path_to_tile}: {e}")
+    patient_results = os.path.join(result_path, f"{patient_id}.pkl")
     with open(patient_results, "wb") as f:
         pickle.dump(patient_tiles, f)
 

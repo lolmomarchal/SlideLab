@@ -3,6 +3,7 @@ import os
 import cv2
 import matplotlib.pyplot as plt
 
+
 class TissueMask:
     def __init__(self, slide, result_path):
         self.slide = slide
@@ -36,7 +37,8 @@ class TissueMask:
 
         return thres, thres_img, img_c
 
-    def remove_small_objects(self, binary_mask, min_size=None, default=True, avoid_overmask=True, overmask_thresh=95,
+    def remove_small_objects(self, binary_mask: np.array, min_size=None, default=True, avoid_overmask=True,
+                             overmask_thresh=95,
                              kernel_size=1):
         """
         Remove small objects from a binary mask.
@@ -135,8 +137,10 @@ class TissueMask:
         black_mask = self.black_pen_filter().astype(np.uint8)
         whole_mask = self.get_whole_slide_mask()
 
-        combined_mask = np.bitwise_or(whole_mask, np.bitwise_or(np.bitwise_or(red_mask, blue_mask), np.bitwise_or(green_mask, black_mask)))
+        combined_mask = np.bitwise_or(whole_mask, np.bitwise_or(np.bitwise_or(red_mask, blue_mask),
+                                                                np.bitwise_or(green_mask, black_mask)))
         return combined_mask
+
     # Helper Methods
 
     def blue_filter(self, red_thresh, green_thresh, blue_thresh):
@@ -159,6 +163,7 @@ class TissueMask:
         mask = (img_array[:, :, 0] < red_thresh) & (img_array[:, :, 1] > green_thresh) & (
                 img_array[:, :, 2] < blue_thresh)
         return mask
+
     def black_pen_filter(self):
         """Filter out black pen marks and return a binary mask."""
         parameters = [
@@ -178,6 +183,7 @@ class TissueMask:
         mask = (img_array[:, :, 0] < red_thresh) & (img_array[:, :, 1] < green_thresh) & (
                 img_array[:, :, 2] < blue_thresh)
         return mask
+
     def get_whole_slide_mask(self):
         _, mask, image_c = self.otsu_mask_threshold(self.thumbnail)
 
@@ -203,6 +209,7 @@ class TissueMask:
         plt.savefig(os.path.join(self.result_path, "masked_slide_nofragments"), bbox_inches='tight', pad_inches=0)
         plt.close()
         return small_objs
+
     def save_original_with_mask(self):
         """Save the original image with the combined mask applied to it."""
         original_image = np.array(self.thumbnail)
@@ -217,8 +224,9 @@ class TissueMask:
         plt.savefig(os.path.join(self.result_path, "original_with_mask"), bbox_inches='tight', pad_inches=0)
         plt.close()
         return combined_mask
+
     def get_region_mask(self, original_size, size):
         mask_region_location = (original_size[0] // self.SCALE, original_size[1] // self.SCALE)
-        mask_region_size = (size[0]//self.SCALE, size[1]//self.SCALE)
+        mask_region_size = (size[0] // self.SCALE, size[1] // self.SCALE)
         return self.mask[mask_region_location[1]:mask_region_location[1] + mask_region_size[1],
                mask_region_location[0]:mask_region_location[0] + mask_region_size[0]]
