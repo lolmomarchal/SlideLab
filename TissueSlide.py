@@ -12,7 +12,7 @@ import numpy as np
 
 
 class TissueSlide:
-    def __init__(self, slide_path, SCALE=32):
+    def __init__(self, slide_path):
         """
       Initializes a TissueSlide object.
       Parameters:
@@ -23,11 +23,11 @@ class TissueSlide:
         try:
             self.slide = openslide.OpenSlide(self.path)
             self.magnification = int(self.slide.properties.get("openslide.objective-power"))
-            #self.SCALE = int(self.slide.level_downsamples[-1])
-            self.SCALE = SCALE
+            self.SCALE = int(self.slide.level_downsamples[-1])
+            # self.SCALE = SCALE
 
             self.thumbnail = self.slide.get_thumbnail(
-                (self.slide.dimensions[0] // SCALE, self.slide.dimensions[1] // SCALE))
+                (self.slide.dimensions[0] // self.SCALE, self.slide.dimensions[1] // self.SCALE))
             self.dimensions = self.slide.dimensions
             self.id = self.path.split("\\")[-1].split(".")[0]
         except openslide.OpenSlideError as e:

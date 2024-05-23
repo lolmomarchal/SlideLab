@@ -2,7 +2,7 @@ import numpy as np
 from PIL import Image
 
 
-def normalizeStaining(img, saveFile = None, Io=240, alpha=1, beta=0.15):
+def normalizeStaining(img, saveFile=None, Io=240, alpha=1, beta=0.15):
     try:
         HERef = np.array([[0.5626, 0.2159],
                           [0.7201, 0.8012],

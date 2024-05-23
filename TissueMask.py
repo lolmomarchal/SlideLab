@@ -6,14 +6,16 @@ import numpy as np
 
 
 class TissueMask:
-    def __init__(self, slide,  masks = ['whole_slide','red_pen', 'green_pen','blue_pen', 'black_pen'],result_path = None, threshold = 0.7):
+    def __init__(self, slide, masks=['whole_slide', 'red_pen', 'green_pen', 'blue_pen', 'black_pen'], result_path=None,
+                 threshold=0.7):
         self.slide = slide
         self.SCALE = self.slide.SCALE
+        # print(f"scale {self.SCALE}")
         self.thumbnail = self.slide.thumbnail
         self.id = self.slide.id
         self.result_path = result_path
         if masks == "default" or masks == "all":
-            self.masks = [ 'whole_slide','red_pen', 'green_pen','blue_pen', 'black_pen']
+            self.masks = ['whole_slide', 'red_pen', 'green_pen', 'blue_pen', 'black_pen']
         else:
             self.masks = masks
 

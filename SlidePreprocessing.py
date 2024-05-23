@@ -1,11 +1,13 @@
 # outside imports
-import os
 import argparse
+import os
+
 # OPENSLIDE_PATH = r"C:\Users\albao\Downloads\openslide-win64-20231011\openslide-win64-20231011\bin"
 # if hasattr(os, 'add_dll_directory'):
 #     with os.add_dll_directory(OPENSLIDE_PATH):
-#         import openslide
+#         pass
 # else:
+#     pass
 import openslide
 import multiprocessing
 import numpy as np
@@ -17,7 +19,6 @@ import csv
 
 # classes/functions
 import TileNormalization
-import SlideEncoding
 import VisulizationUtils
 from TissueSlide import TissueSlide
 from TissueMask import TissueMask
@@ -44,7 +45,7 @@ within the WSI file.
 """
 
 summary = []
-errors =[]
+errors = []
 # Defaults
 MAG = 20
 DESIRED_SIZE = 256
@@ -71,7 +72,8 @@ Returns:
     return int(size * new_size)
 
 
-def tiling(ts: TissueSlide, result_path: str, mask: TissueMask, overlap=OVERLAP, desired_size=DESIRED_SIZE, mag = MAG) -> int:
+def tiling(ts: TissueSlide, result_path: str, mask: TissueMask, overlap=OVERLAP, desired_size=DESIRED_SIZE,
+           mag=MAG) -> int:
     """
 Tiles the provided slide according to TissueMask
 
@@ -92,7 +94,7 @@ Returns:
         os.makedirs(result_path)
     tiles = os.path.join(result_path, "tiles")
 
-    columns = ['patient_id', 'x', 'y', 'magnification', 'size', 'path_to_slide']
+    columns = ['patient_id', 'x', 'y', 'magnification', 'size', 'path_to_slide', 'scale']
     df_list = []
     os.makedirs(os.path.join(result_path, "tiles"), exist_ok=True)
 
@@ -114,7 +116,8 @@ Returns:
                 if mask.is_tissue(tile_mask):
                     tile = tissue_rgb.convert("RGB")
                     tile = tile.resize((desired_size, desired_size))
-                    tile.save(os.path.join(tiles, f"{ts.id}_tile_w{x}_h{y}_mag{ts.magnification}_size{size}.png"))
+                    tile.save(os.path.join(tiles,
+                                           f"{ts.id}_tile_w{x}_h{y}_mag{ts.magnification}_size{size}_scale{ts.SCALE}.png"))
                     df_list.append({
                         'patient_id': ts.id,
                         'x': x,
@@ -122,7 +125,8 @@ Returns:
                         'magnification': ts.magnification,
                         'size': size,
                         'path_to_slide': os.path.join(tiles,
-                                                      f"{ts.id}_tile_w{x}_h{y}_mag{ts.magnification}_size{size}.png")
+                                                      f"{ts.id}_tile_w{x}_h{y}_mag{ts.magnification}_size{size}_scale{ts.SCALE}.png"),
+                        'scale': ts.SCALE
                     })
     df = pd.DataFrame(df_list, columns=columns)
 
@@ -130,7 +134,7 @@ Returns:
     return len(df)
 
 
-def normalize_tiles(tile_information: str, result_path: str, device = "cpu"):
+def normalize_tiles(tile_information: str, result_path: str, device="cpu"):
     """
    Normalizes the tiles
 
@@ -142,7 +146,7 @@ def normalize_tiles(tile_information: str, result_path: str, device = "cpu"):
     tiles = pd.read_csv(tile_information)
     path = os.path.join(result_path, "normalized_tiles")
     df_list = []
-    columns = ['patient_id', 'x', 'y', 'magnification', 'size', 'path_to_slide']
+    columns = ['patient_id', 'x', 'y', 'magnification', 'size', 'path_to_slide', 'scale']
     os.makedirs(os.path.join(result_path, "normalized_tiles"), exist_ok=True)
     for i, row in tiles.iterrows():
         path_to_tile = row["path_to_slide"]
@@ -151,12 +155,14 @@ def normalize_tiles(tile_information: str, result_path: str, device = "cpu"):
         y = row["y"]
         x = row["x"]
         id = row["patient_id"]
+        scale = row["scale"]
         try:
             tile = np.array(Image.open(path_to_tile))
             if tile is not None:
                 # tile = torch.from_numpy(tile).to(device)
                 TileNormalization.normalizeStaining(tile,
-                                                os.path.join(path, f"{id}_tile_w{x}_h{y}_mag{mag}_size{size}.png"))
+                                                    os.path.join(path,
+                                                                 f"{id}_tile_w{x}_h{y}_mag{mag}_size{size}_scale{scale}.png"))
 
                 df_list.append({
                     'patient_id': id,
@@ -164,7 +170,8 @@ def normalize_tiles(tile_information: str, result_path: str, device = "cpu"):
                     'y': y,
                     'magnification': mag,
                     'size': size,
-                    'path_to_slide': os.path.join(path, f"{id}_tile_w{x}_h{y}_mag{mag}_size{size}.png")
+                    'path_to_slide': os.path.join(path, f"{id}_tile_w{x}_h{y}_mag{mag}_size{size}_scale{scale}.png"),
+                    'scale': scale
                 })
 
             else:
@@ -177,7 +184,7 @@ def normalize_tiles(tile_information: str, result_path: str, device = "cpu"):
     df.to_csv(os.path.join(result_path, "normalized_tile_information.csv"), index=False)
 
 
-def blurry_filter(tile_information, result_path, threshold = 0.015):
+def blurry_filter(tile_information, result_path, threshold=0.015):
     """
 Removes any tiles that might be blurry using a laplacian filter
 
@@ -197,7 +204,7 @@ Parameters:
 
     # creating csv for ease of use access
     df_list = []
-    columns = ['patient_id', 'x', 'y', 'magnification', 'size', 'path_to_slide']
+    columns = ['patient_id', 'x', 'y', 'magnification', 'size', 'path_to_slide', 'scale']
     for i, row in tiles.iterrows():
         path_to_tile = row["path_to_slide"]
         mag = row["magnification"]
@@ -205,24 +212,27 @@ Parameters:
         y = row["y"]
         x = row["x"]
         id = row["patient_id"]
+        scale = row["scale"]
         try:
             tile = np.array(Image.open(path_to_tile))
             if tile is not None:
-                not_blurry = TileQualityFilters.LaplaceFilter(tile, var_threshold = threshold)
+                not_blurry = TileQualityFilters.LaplaceFilter(tile, var_threshold=threshold)
                 if not_blurry:
                     img = Image.open(path_to_tile)
-                    img.save(os.path.join(path, f"{id}_tile_w{x}_h{y}_mag{mag}_size{size}.png"))
+                    img.save(os.path.join(path, f"{id}_tile_w{x}_h{y}_mag{mag}_size{size}_scale{scale}.png"))
                     df_list.append({
                         'patient_id': id,
                         'x': x,
                         'y': y,
                         'magnification': mag,
                         'size': size,
-                        'path_to_slide': os.path.join(path, f"{id}_tile_w{x}_h{y}_mag{mag}_size{size}.png")
+                        'path_to_slide': os.path.join(path,
+                                                      f"{id}_tile_w{x}_h{y}_mag{mag}_size{size}_scale{scale}.png"),
+                        'scale': scale
                     })
                 else:
                     img = Image.open(path_to_tile)
-                    img.save(os.path.join(blurry_path, f"{id}_tile_w{x}_h{y}_mag{mag}_size{size}.png"))
+                    img.save(os.path.join(blurry_path, f"{id}_tile_w{x}_h{y}_mag{mag}_size{size}_scale{scale}.png"))
         except Exception as e:
             print(f"An error occurred: {e}")
             global errors
@@ -299,7 +309,7 @@ def preprocessing(path, patient_path, patient_id, device, encoder_path, args):
     print(f"processing: {path}")
     if Tissue.slide is not None:
 
-        mask = TissueMask(Tissue, "default",patient_path, threshold = args.tissue_threshold)
+        mask = TissueMask(Tissue, "default", patient_path, threshold=args.tissue_threshold)
         tile_inf_path = os.path.join(patient_path, "tile_information.csv")
 
         if not os.path.isfile(tile_inf_path):
@@ -314,21 +324,21 @@ def preprocessing(path, patient_path, patient_id, device, encoder_path, args):
 
         in_focus_path = os.path.join(patient_path, "infocus_tile_information.csv")
         if not os.path.isfile(in_focus_path):
-            blur = blurry_filter(normalize_tiles_path, patient_path, threshold = args.blur_threshold)
+            blur = blurry_filter(normalize_tiles_path, patient_path, threshold=args.blur_threshold)
         else:
-            blur =len(pd.read_csv(in_focus_path))
+            blur = len(pd.read_csv(in_focus_path))
 
         if RECONSTRUCT:
             VisulizationUtils.SlideReconstruction(in_focus_path, os.path.join(patient_path, "Reconstructed_Slide.png"))
 
         # Encoding
 
-        SlideEncoding.encode_tiles(patient_id, in_focus_path, encoder_path, device)
+        # SlideEncoding.encode_tiles(patient_id, in_focus_path, encoder_path, device)
 
     else:
         error.append((patient_id, path, "OpenSlide had an error with opening the provided slide.", "Slide Opening"))
     summary.append((patient_id, path, total_tiles, blur))
-    return summary,error
+    return summary, error
 
 
 def preprocess_patient(row, device, encoder_path, args):
@@ -359,7 +369,7 @@ def parse_args():
                         help="Overlap between tiles (default: %(default)s)")
     parser.add_argument("-th", "--tissue_threshold", type=float, default=0.7,
                         help="Threshold to consider a tile as Tissue(default: %(default)s)")
-    parser.add_argument("-bh", "--blur_threshold", type=int, default= 0.015,
+    parser.add_argument("-bh", "--blur_threshold", type=int, default=0.015,
                         help="Threshold for laplace filter variance (default: %(default)s)")
 
     return parser.parse_args()
@@ -386,7 +396,7 @@ def main():
 
     # raise error if invalid input path
     if not os.path.exists(input_path):
-       raise FileNotFoundError(f"The file '{input_path}' does not exist.")
+        raise FileNotFoundError(f"The file '{input_path}' does not exist.")
 
     if not os.path.exists(output_path):
         os.makedirs(output_path)
@@ -406,7 +416,8 @@ def main():
 
     # multiprocessing of sample preprocessing
     with multiprocessing.Pool(processes=processes, maxtasksperchild=1) as pool:
-        results = pool.starmap(preprocess_patient, [(row, device, encoder_path, args) for _, row in patients.iterrows()])
+        results = pool.starmap(preprocess_patient,
+                               [(row, device, encoder_path, args) for _, row in patients.iterrows()])
 
     # write summary and error report
     global summary, errors
@@ -415,7 +426,6 @@ def main():
         errors.extend(res[1])
 
     reports = Reports.Reports(summary, errors, output_path)
-
 
 
 if __name__ == "__main__":
