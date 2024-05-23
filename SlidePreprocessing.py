@@ -1,29 +1,29 @@
 # outside imports
 import argparse
-import os
-
+import csv
 # OPENSLIDE_PATH = r"C:\Users\albao\Downloads\openslide-win64-20231011\openslide-win64-20231011\bin"
 # if hasattr(os, 'add_dll_directory'):
 #     with os.add_dll_directory(OPENSLIDE_PATH):
 #         pass
 # else:
 #     pass
-import openslide
 import multiprocessing
+import os
+import shutil
+
 import numpy as np
 import pandas as pd
-from PIL import Image
-import shutil
 import torch
-import csv
+from PIL import Image
 
+import Reports
+import SlideEncoding
 # classes/functions
 import TileNormalization
-import VisulizationUtils
-from TissueSlide import TissueSlide
-from TissueMask import TissueMask
 import TileQualityFilters
-import Reports
+import VisulizationUtils
+from TissueMask import TissueMask
+from TissueSlide import TissueSlide
 
 """
 SlidePreprocessing.py
@@ -333,7 +333,7 @@ def preprocessing(path, patient_path, patient_id, device, encoder_path, args):
 
         # Encoding
 
-        # SlideEncoding.encode_tiles(patient_id, in_focus_path, encoder_path, device)
+        SlideEncoding.encode_tiles(patient_id, in_focus_path, encoder_path, device)
 
     else:
         error.append((patient_id, path, "OpenSlide had an error with opening the provided slide.", "Slide Opening"))
