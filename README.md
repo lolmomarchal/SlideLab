@@ -1,4 +1,3 @@
-# WSI_preprocessing
 
 # SlidePreprocessing
 
