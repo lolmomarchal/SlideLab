@@ -6,7 +6,7 @@ import numpy as np
 
 
 class TissueMask:
-    def __init__(self, slide,  masks = ['whole_slide','red_pen', 'green_pen','blue_pen', 'black_pen'],result_path = None):
+    def __init__(self, slide,  masks = ['whole_slide','red_pen', 'green_pen','blue_pen', 'black_pen'],result_path = None, threshold = 0.7):
         self.slide = slide
         self.SCALE = self.slide.SCALE
         self.thumbnail = self.slide.thumbnail
@@ -18,11 +18,12 @@ class TissueMask:
             self.masks = masks
 
         self.mask = self.save_original_with_mask()
+        self.threshold = threshold
 
-    def is_tissue(self, masked_region, threshold=0.7):
+    def is_tissue(self, masked_region):
         tissue = np.count_nonzero(masked_region)
         total_elements = masked_region.size
-        if tissue / total_elements >= threshold:
+        if tissue / total_elements >= self.threshold:
             return True
         return False
 

@@ -1,12 +1,12 @@
 # outside imports
 import os
 import argparse
-OPENSLIDE_PATH = r"C:\Users\albao\Downloads\openslide-win64-20231011\openslide-win64-20231011\bin"
-if hasattr(os, 'add_dll_directory'):
-    with os.add_dll_directory(OPENSLIDE_PATH):
-        import openslide
-else:
-    import openslide
+# OPENSLIDE_PATH = r"C:\Users\albao\Downloads\openslide-win64-20231011\openslide-win64-20231011\bin"
+# if hasattr(os, 'add_dll_directory'):
+#     with os.add_dll_directory(OPENSLIDE_PATH):
+#         import openslide
+# else:
+import openslide
 import multiprocessing
 import numpy as np
 import pandas as pd
@@ -88,7 +88,7 @@ Returns:
 """
     print("Tiling slide")
     # Make tile dir
-    if not os.path.isdir(result_path):
+    if not os.path.exists(result_path):
         os.makedirs(result_path)
     tiles = os.path.join(result_path, "tiles")
 
@@ -177,7 +177,7 @@ def normalize_tiles(tile_information: str, result_path: str, device = "cpu"):
     df.to_csv(os.path.join(result_path, "normalized_tile_information.csv"), index=False)
 
 
-def blurry_filter(tile_information, result_path):
+def blurry_filter(tile_information, result_path, threshold = 0.015):
     """
 Removes any tiles that might be blurry using a laplacian filter
 
@@ -208,7 +208,7 @@ Parameters:
         try:
             tile = np.array(Image.open(path_to_tile))
             if tile is not None:
-                not_blurry = TileQualityFilters.LaplaceFilter(tile)
+                not_blurry = TileQualityFilters.LaplaceFilter(tile, var_threshold = threshold)
                 if not_blurry:
                     img = Image.open(path_to_tile)
                     img.save(os.path.join(path, f"{id}_tile_w{x}_h{y}_mag{mag}_size{size}.png"))
@@ -289,7 +289,7 @@ def patient_csv(input_path, results_path):
     return csv_file_path
 
 
-def preprocessing(path, patient_path, patient_id, device, encoder_path):
+def preprocessing(path, patient_path, patient_id, device, encoder_path, args):
     Tissue = TissueSlide(path)
     total_tiles = None
     blur = None
@@ -298,24 +298,31 @@ def preprocessing(path, patient_path, patient_id, device, encoder_path):
 
     print(f"processing: {path}")
     if Tissue.slide is not None:
-        mask = TissueMask(Tissue, "default",patient_path)
+
+        mask = TissueMask(Tissue, "default",patient_path, threshold = args.tissue_threshold)
         tile_inf_path = os.path.join(patient_path, "tile_information.csv")
 
         if not os.path.isfile(tile_inf_path):
             total_tiles = tiling(Tissue, patient_path, mask)
+        else:
+            total_tiles = len(pd.read_csv(tile_inf_path))
 
         normalize_tiles_path = os.path.join(patient_path, "normalized_tile_information.csv")
+        print(normalize_tiles_path)
         if not os.path.isfile(normalize_tiles_path):
             normalize_tiles(tile_inf_path, patient_path, device)
 
         in_focus_path = os.path.join(patient_path, "infocus_tile_information.csv")
         if not os.path.isfile(in_focus_path):
-            blur = blurry_filter(normalize_tiles_path, patient_path)
+            blur = blurry_filter(normalize_tiles_path, patient_path, threshold = args.blur_threshold)
+        else:
+            blur =len(pd.read_csv(in_focus_path))
+
         if RECONSTRUCT:
             VisulizationUtils.SlideReconstruction(in_focus_path, os.path.join(patient_path, "Reconstructed_Slide.png"))
 
         # Encoding
-        #SlideEncoding.encode_tiles(patient_id, in_focus_path, encoder_path, device)
+       # SlideEncoding.encode_tiles(patient_id, in_focus_path, encoder_path, device)
 
     else:
         error.append((patient_id, path, "OpenSlide had an error with opening the provided slide.", "Slide Opening"))
@@ -323,11 +330,11 @@ def preprocessing(path, patient_path, patient_id, device, encoder_path):
     return summary,error
 
 
-def preprocess_patient(row, device, encoder_path):
+def preprocess_patient(row, device, encoder_path, args):
     result = row["Preprocessing Path"]
     original = row["Original Slide Path"]
     patient_id = row["Patient ID"]
-    s, e = preprocessing(original, result, patient_id, device, encoder_path)
+    s, e = preprocessing(original, result, patient_id, device, encoder_path, args)
     print(f"done with patient {patient_id}")
     return s, e
 
@@ -335,9 +342,9 @@ def preprocess_patient(row, device, encoder_path):
 def parse_args():
     parser = argparse.ArgumentParser(description="WSI Preprocessing")
     parser.add_argument("-i", "--input_path", type=str,
-                        default=r"C:\Users\albao\Downloads\test",
+                        default=r"C:\Users\albao\Downloads\gdc_download_20240503_055336.548442",
                         help="Input path (default: %(default)s)")
-    parser.add_argument("-o", "--output_path", type=str, default=r"C:\Users\albao\Downloads\Attempt2",
+    parser.add_argument("-o", "--output_path", type=str, default=r"C:\Users\albao\Masters\WSI_test",
                         help="Result path (default: %(default)s)")
     parser.add_argument("-p", "--processes", type=int, default=1,
                         help="Number of threads for multiprocessing (default: %(default)s)")
@@ -349,6 +356,10 @@ def parse_args():
                         help="Desired magnification level (default: %(default)s)")
     parser.add_argument("-ov", "--overlap", type=int, default=0,
                         help="Overlap between tiles (default: %(default)s)")
+    parser.add_argument("-th", "--tissue_threshold", type=float, default=0.7,
+                        help="Threshold to consider a tile as Tissue(default: %(default)s)")
+    parser.add_argument("-bh", "--blur_threshold", type=int, default= 0.015,
+                        help="Threshold for laplace filter variance (default: %(default)s)")
 
     return parser.parse_args()
 
@@ -371,6 +382,11 @@ def main():
     global RECONSTRUCT
     RECONSTRUCT = args.tile_graph
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+    # raise error if invalid input path
+    if not os.path.exists(input_path):
+       raise FileNotFoundError(f"The file '{input_path}' does not exist.")
+
     if not os.path.exists(output_path):
         os.makedirs(output_path)
 
@@ -389,7 +405,7 @@ def main():
 
     # multiprocessing of sample preprocessing
     with multiprocessing.Pool(processes=processes, maxtasksperchild=1) as pool:
-        results = pool.starmap(preprocess_patient, [(row, device, encoder_path) for _, row in patients.iterrows()])
+        results = pool.starmap(preprocess_patient, [(row, device, encoder_path, args) for _, row in patients.iterrows()])
 
     # write summary and error report
     global summary, errors
