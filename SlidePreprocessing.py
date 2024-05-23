@@ -10,15 +10,15 @@ import csv
 import multiprocessing
 import os
 import shutil
-
+import openslide
 import numpy as np
 import pandas as pd
 import torch
 from PIL import Image
 
+# classes/functions
 import Reports
 import SlideEncoding
-# classes/functions
 import TileNormalization
 import TileQualityFilters
 import VisulizationUtils
