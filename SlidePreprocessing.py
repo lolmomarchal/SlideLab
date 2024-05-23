@@ -332,7 +332,6 @@ def preprocessing(path, patient_path, patient_id, device, encoder_path, args):
             VisulizationUtils.SlideReconstruction(in_focus_path, os.path.join(patient_path, "Reconstructed_Slide.png"))
 
         # Encoding
-
         SlideEncoding.encode_tiles(patient_id, in_focus_path, encoder_path, device)
 
     else:
