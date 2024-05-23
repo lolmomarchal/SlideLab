@@ -3,11 +3,9 @@ from PIL import Image
 import matplotlib.pyplot as plt
 import numpy as np
 
-SCALE = 32
 
-
-def get_size(size):
-    return size // SCALE
+def get_size(size, scale):
+    return size // scale
 def SlideReconstruction(tile_information, output_file=None):
     """
     Reconstructs tissue slide based on provided tiles
@@ -24,9 +22,10 @@ def SlideReconstruction(tile_information, output_file=None):
     for _, row in tiles.iterrows():
         path_to_tile = row["path_to_slide"]
         size = row["size"]
-        y = row["y"] // SCALE
-        x = row["x"] // SCALE
-        resized = get_size(size)
+        scale = row["scale"]
+        y = row["y"] // scale
+        x = row["x"] // scale
+        resized = get_size(size, scale)
 
         img = Image.open(path_to_tile).resize((resized, resized))
 
