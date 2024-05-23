@@ -1,16 +1,11 @@
 # outside imports
 import argparse
 import csv
-# OPENSLIDE_PATH = r"C:\Users\albao\Downloads\openslide-win64-20231011\openslide-win64-20231011\bin"
-# if hasattr(os, 'add_dll_directory'):
-#     with os.add_dll_directory(OPENSLIDE_PATH):
-#         pass
-# else:
-#     pass
+
 import multiprocessing
 import os
 import shutil
-import openslide
+# import openslide
 import numpy as np
 import pandas as pd
 import torch
@@ -352,9 +347,9 @@ def preprocess_patient(row, device, encoder_path, args):
 def parse_args():
     parser = argparse.ArgumentParser(description="WSI Preprocessing")
     parser.add_argument("-i", "--input_path", type=str,
-                        default=r"C:\Users\albao\Downloads\gdc_download_20240503_055336.548442",
+                        default=r"C:\Users\albao\Downloads\gdc_download_20240320_111546.230274",
                         help="Input path (default: %(default)s)")
-    parser.add_argument("-o", "--output_path", type=str, default=r"C:\Users\albao\Masters\WSI_test",
+    parser.add_argument("-o", "--output_path", type=str, default=r"C:\Users\albao\Masters\WSI_final",
                         help="Result path (default: %(default)s)")
     parser.add_argument("-p", "--processes", type=int, default=1,
                         help="Number of threads for multiprocessing (default: %(default)s)")

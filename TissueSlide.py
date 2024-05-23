@@ -1,12 +1,12 @@
 OPENSLIDE_PATH = r"C:\Users\albao\Downloads\openslide-win64-20231011\openslide-win64-20231011\bin"
 import os
 
-# if hasattr(os, 'add_dll_directory'):
-#     # Windows
-#     with os.add_dll_directory(OPENSLIDE_PATH):
-#         import openslide
-# else:
-#     import openslide
+if hasattr(os, 'add_dll_directory'):
+    # Windows
+    with os.add_dll_directory(OPENSLIDE_PATH):
+        import openslide
+else:
+    import openslide
 import openslide
 import numpy as np
 
