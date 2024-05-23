@@ -15,14 +15,14 @@ def SlideReconstruction(tile_information, output_file=None):
         output_file (str): Optional path to save the composite image as a file.
     """
     tiles = pd.read_csv(tile_information)
-    max_x = (tiles['x'].max() + tiles['size'].max()) // SCALE
-    max_y = (tiles['y'].max() + tiles['size'].max()) // SCALE
+    scale = tiles["scale"].iloc[0]
+    max_x = (tiles['x'].max() + tiles['size'].max()) // scale
+    max_y = (tiles['y'].max() + tiles['size'].max()) // scale
 
     composite_img = Image.new('RGB', (max_x, max_y), color='black')
     for _, row in tiles.iterrows():
         path_to_tile = row["path_to_slide"]
         size = row["size"]
-        scale = row["scale"]
         y = row["y"] // scale
         x = row["x"] // scale
         resized = get_size(size, scale)
