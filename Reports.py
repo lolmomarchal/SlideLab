@@ -19,10 +19,10 @@ class Reports:
         else:
             option = "x"
         with open(self.summary_path, option) as file:
-            file.write("Summary Report\n")
+            file.write("Summary Report\n\n")
             for item in self.summary:
                 file.write(
-                    f"Patient ID : {item[0]} Path: {item[1]}\nTotal Tiles: {item[2]} Tiles After Blurry Filter {item[3]}\n-------------------------------------\n")
+                    f"Patient ID : {item[0]}\nPath: {item[1]}\nTotal Tiles: {item[2]}\nNon-blurry Tiles: {item[3]}\n-------------------------------------\n")
 
     def error_report(self):
         if os.path.isfile(self.error_path):

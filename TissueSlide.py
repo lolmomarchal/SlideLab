@@ -1,17 +1,17 @@
-# OPENSLIDE_PATH = r"C:\Users\albao\Downloads\openslide-win64-20231011\openslide-win64-20231011\bin"
-import openslide
+OPENSLIDE_PATH = r"C:\Users\albao\Downloads\openslide-win64-20231011\openslide-win64-20231011\bin"
+import os
 
-# if hasattr(os, 'add_dll_directory'):
-#     # Windows
-#     with os.add_dll_directory(OPENSLIDE_PATH):
-#         import openslide
-# else:
-#     import openslide
+if hasattr(os, 'add_dll_directory'):
+    # Windows
+    with os.add_dll_directory(OPENSLIDE_PATH):
+        import openslide
+else:
+    import openslide
 import numpy as np
 
 
 class TissueSlide:
-    def __init__(self, slide_path, SCALE=32):
+    def __init__(self, slide_path, SCALE=16):
         """
       Initializes a TissueSlide object.
       Parameters:
@@ -22,11 +22,13 @@ class TissueSlide:
         try:
             self.slide = openslide.OpenSlide(self.path)
             self.magnification = int(self.slide.properties.get("openslide.objective-power"))
+            #self.SCALE = int(self.slide.level_downsamples[-1])
+            self.SCALE = SCALE
+
             self.thumbnail = self.slide.get_thumbnail(
                 (self.slide.dimensions[0] // SCALE, self.slide.dimensions[1] // SCALE))
             self.dimensions = self.slide.dimensions
             self.id = self.path.split("\\")[-1].split(".")[0]
-            self.SCALE = SCALE
         except openslide.OpenSlideError as e:
             print(f"An error occurred while opening the slide: {e}")
             self.slide = None

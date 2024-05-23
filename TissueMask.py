@@ -1,16 +1,22 @@
-import numpy as np
 import os
+
 import cv2
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 class TissueMask:
-    def __init__(self, slide, result_path):
+    def __init__(self, slide,  masks = ['whole_slide','red_pen', 'green_pen','blue_pen', 'black_pen'],result_path = None):
         self.slide = slide
         self.SCALE = self.slide.SCALE
         self.thumbnail = self.slide.thumbnail
         self.id = self.slide.id
         self.result_path = result_path
+        if masks == "default" or masks == "all":
+            self.masks = [ 'whole_slide','red_pen', 'green_pen','blue_pen', 'black_pen']
+        else:
+            self.masks = masks
+
         self.mask = self.save_original_with_mask()
 
     def is_tissue(self, masked_region, threshold=0.7):
@@ -131,14 +137,26 @@ class TissueMask:
         return combined_mask
 
     def combined_mask(self):
-        red_mask = self.red_pen_filter().astype(np.uint8)
-        blue_mask = self.blue_pen_filter().astype(np.uint8)
-        green_mask = self.green_pen_filter().astype(np.uint8)
-        black_mask = self.black_pen_filter().astype(np.uint8)
-        whole_mask = self.get_whole_slide_mask()
+        mask_methods = self.masks
+        method_dict = {
+            'red_pen': self.red_pen_filter,
+            'blue_pen': self.blue_pen_filter,
+            'green_pen': self.green_pen_filter,
+            'black_pen': self.black_pen_filter,
+            'whole_slide': self.get_whole_slide_mask
+        }
 
-        combined_mask = np.bitwise_or(whole_mask, np.bitwise_or(np.bitwise_or(red_mask, blue_mask),
-                                                                np.bitwise_or(green_mask, black_mask)))
+        # Initialize combined mask with the first method
+        first_method = method_dict[mask_methods[0]]
+        combined_mask = first_method().astype(np.uint8)
+        if len(mask_methods) == 1:
+            return combined_mask
+
+        # Combine the rest of the masks
+        for method_name in mask_methods[1:]:
+            method = method_dict[method_name]
+            combined_mask = np.bitwise_or(combined_mask, method().astype(np.uint8))
+
         return combined_mask
 
     # Helper Methods
@@ -190,13 +208,15 @@ class TissueMask:
         # Save original image
         plt.imshow(self.thumbnail)
         plt.axis("off")
-        plt.savefig(os.path.join(self.result_path, "original_slide"), bbox_inches='tight', pad_inches=0)
+        if self.result_path is not None:
+            plt.savefig(os.path.join(self.result_path, "original_slide"), bbox_inches='tight', pad_inches=0)
         plt.close()
 
         # Save masked slide
         plt.imshow(mask)
         plt.axis("off")
-        plt.savefig(os.path.join(self.result_path, "masked_slide"), bbox_inches='tight', pad_inches=0)
+        if self.result_path is not None:
+            plt.savefig(os.path.join(self.result_path, "masked_slide"), bbox_inches='tight', pad_inches=0)
         plt.close()
 
         # Save masked slide without small fragments
@@ -206,7 +226,8 @@ class TissueMask:
         wsi_thumb_masked[binary_mask == 0] = 255
         plt.imshow(binary_mask)
         plt.axis("off")
-        plt.savefig(os.path.join(self.result_path, "masked_slide_nofragments"), bbox_inches='tight', pad_inches=0)
+        if self.result_path is not None:
+            plt.savefig(os.path.join(self.result_path, "masked_slide_nofragments"), bbox_inches='tight', pad_inches=0)
         plt.close()
         return small_objs
 
@@ -221,7 +242,9 @@ class TissueMask:
         # Save the masked image
         plt.imshow(applied_mask)
         plt.axis("off")
-        plt.savefig(os.path.join(self.result_path, "original_with_mask"), bbox_inches='tight', pad_inches=0)
+        plt.axis("off")
+        if self.result_path is not None:
+            plt.savefig(os.path.join(self.result_path, "original_with_mask"), bbox_inches='tight', pad_inches=0)
         plt.close()
         return combined_mask
 

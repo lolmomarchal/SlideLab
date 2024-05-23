@@ -1,0 +1,8 @@
+pandas
+Pillow
+matplotlib
+numpy
+openslide-python
+torch
+opencv-python
+scikit-image
