@@ -24,12 +24,11 @@ class TissueSlide:
             self.slide = openslide.OpenSlide(self.path)
             self.magnification = int(self.slide.properties.get("openslide.objective-power"))
             self.SCALE = int(self.slide.level_downsamples[-1])
-            # self.SCALE = SCALE
-
             self.thumbnail = self.slide.get_thumbnail(
                 (self.slide.dimensions[0] // self.SCALE, self.slide.dimensions[1] // self.SCALE))
             self.dimensions = self.slide.dimensions
-            self.id = self.path.split("\\")[-1].split(".")[0]
+            self.id = os.path.basename(self.path).split(".")[0]
+            # self.path.split("\\")[-1].split("."))[0]
         except openslide.OpenSlideError as e:
             print(f"An error occurred while opening the slide: {e}")
             self.slide = None
@@ -39,7 +38,15 @@ class TissueSlide:
             self.id = None
             self.SCALE = None
 
-    def get_slide(self):
+    def metadata(self):
+        """Retrieves the different metadata for the Tissue Slide
+        Returns:
+            Metadata Dictionary
+        """
+        return {"slide": self.slide, "magnification": self.magnification, "thumbnail": self.thumbnail,
+                "dimensions": self.dimensions, "id": self.id, "scale": self.SCALE}
+
+    def get_slide(self) -> openslide.OpenSlide:
         """
        Retrieves the slide
        Returns:
@@ -47,7 +54,7 @@ class TissueSlide:
        """
         return self.slide
 
-    def get_thumbnail(self):
+    def get_thumbnail(self) -> np.array:
         """
       Retrieves the thumbnail image of the slide.
       Returns:
@@ -55,7 +62,7 @@ class TissueSlide:
       """
         return np.array(self.thumbnail)
 
-    def get_magnification(self):
+    def get_magnification(self) -> int:
         """
        Retrieves the natural magnification level of the slide.
        Returns:
@@ -63,7 +70,7 @@ class TissueSlide:
        """
         return self.magnification
 
-    def get_slide_path(self):
+    def get_slide_path(self) -> str:
         """
       Retrieves the file path of the slide image.
       Returns:
@@ -71,7 +78,7 @@ class TissueSlide:
       """
         return self.path
 
-    def get_id(self):
+    def get_id(self) -> str:
         """
       Retrieves the ID of the slide.
       Returns:

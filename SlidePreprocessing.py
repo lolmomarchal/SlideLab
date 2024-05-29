@@ -25,7 +25,7 @@ SlidePreprocessing.py
 
 Author: Lorenzo Olmo Marchal
 Created: March 5, 2024
-Last Updated:  May 21, 2024
+Last Updated:  May 24, 2024
 
 Description:
 This script automates the preprocessing and normalization of Whole Slide Images (WSI) in digital histopathology. 
@@ -93,14 +93,14 @@ Returns:
     df_list = []
     os.makedirs(os.path.join(result_path, "tiles"), exist_ok=True)
 
-    if overlap != 0:
-        stride = desired_size // overlap
-    else:
-        stride = desired_size
-
     size = best_size(ts, desired_size, mag)
     w = ts.dimensions[0]
     h = ts.dimensions[1]
+
+    if overlap != 0:
+        stride = desired_size // overlap
+    else:
+        stride = size
 
     for x in range(0, w - size + 1, stride):
         for y in range(0, h - size + 1, stride):
@@ -134,7 +134,7 @@ def normalize_tiles(tile_information: str, result_path: str, device="cpu"):
    Normalizes the tiles
 
    Parameters:
-       tile_information (str): path to csv with all the tiles to be normalized.
+       tile_information (str): path to csv with all the tiles to be normalized .
        result_path (str): path where the normalized tiles should be saved.
    """
     print("Normalizing tiles")
@@ -313,7 +313,6 @@ def preprocessing(path, patient_path, patient_id, device, encoder_path, args):
             total_tiles = len(pd.read_csv(tile_inf_path))
 
         normalize_tiles_path = os.path.join(patient_path, "normalized_tile_information.csv")
-        print(normalize_tiles_path)
         if not os.path.isfile(normalize_tiles_path):
             normalize_tiles(tile_inf_path, patient_path, device)
 

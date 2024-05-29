@@ -1,40 +1,38 @@
 import os
 
+import pandas as pd
+
 """
 Generates summary and error reports for the preprocessing pipeline
+
+Outputs: A summary of the processed slides and a report of any error encountered. 
+
+Summary reports include:
+- Sample ID, Path to Slide,number of tiles found, number of tiles that pass the QC, and percentage of tissue tiles remaining 
+
+Error reports include:
+- Sample ID, Path to Slide, Error type/message, Step in line where the error occurred.
+
 """
+
+
 class Reports:
     def __init__(self, summary, error, path):
         self.summary = summary
         self.error = error
         self.path = path
-        self.summary_path = os.path.join(self.path, "SummaryReport.txt")
-        self.error_path = os.path.join(self.path, "ErrorReport.txt")
+        self.summary_path = os.path.join(self.path, "SummaryReport.csv")
+        self.error_path = os.path.join(self.path, "ErrorReport.csv")
         self.summary_report()
         self.error_report()
 
     def summary_report(self):
-        if os.path.isfile(self.summary_path):
-            option = "w"
-        else:
-            option = "x"
-        with open(self.summary_path, option) as file:
-            file.write("Summary Report\n\n")
-            for item in self.summary:
-                file.write(
-                    f"Patient ID : {item[0]}\nPath: {item[1]}\nTotal Tiles: {item[2]}\nNon-blurry Tiles: {item[3]}\n-------------------------------------\n")
+        columns = ["Sample ID", "Path", "Total Tiles", "Non-blurry Tiles"]
+        summary = pd.DataFrame(self.summary, columns=columns)
+        summary["Percentage of Tiles Passing QC"] = (summary["Non-blurry Tiles"] / summary["Total Tiles"]) * 100
+        summary.to_csv(self.summary_path, index=False)
 
     def error_report(self):
-        if os.path.isfile(self.error_path):
-            option = "w"
-        else:
-            option = "x"
-        with open(self.error_path, option) as file:
-            file.write("Error Report")
-            current_patient = None
-            for item in self.error:
-                if item[0] != current_patient:
-                    current_patient = item[0]
-                    file.write(f"\n-------------------------------------\n Patient ID: {item[0]}\n")
-                file.write(f"Error: {item[2]}\nLocation: {item[4]}\n Path: {item[1]}\n")
-
+        columns = ["Sample ID", "Path", "Error", "Step in Pipeline"]
+        error = pd.DataFrame(self.error, columns=columns)
+        error.to_csv(self.error_path, index=False)
