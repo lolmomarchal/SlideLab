@@ -1,11 +1,10 @@
 # outside imports
 import argparse
 import csv
-
 import multiprocessing
 import os
 import shutil
-# import openslide
+import openslide
 import numpy as np
 import pandas as pd
 import torch
@@ -25,7 +24,7 @@ SlidePreprocessing.py
 
 Author: Lorenzo Olmo Marchal
 Created: March 5, 2024
-Last Updated:  May 24, 2024
+Last Updated:  May 29, 2024
 
 Description:
 This script automates the preprocessing and normalization of Whole Slide Images (WSI) in digital histopathology. 
@@ -304,7 +303,7 @@ def preprocessing(path, patient_path, patient_id, device, encoder_path, args):
     print(f"processing: {path}")
     if Tissue.slide is not None:
 
-        mask = TissueMask(Tissue, "default", patient_path, threshold=args.tissue_threshold)
+        mask = TissueMask(Tissue, patient_path)
         tile_inf_path = os.path.join(patient_path, "tile_information.csv")
 
         if not os.path.isfile(tile_inf_path):
