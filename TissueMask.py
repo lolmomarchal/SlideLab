@@ -1,3 +1,4 @@
+
 import os
 
 import cv2
@@ -7,7 +8,7 @@ from PIL import Image
 
 
 class TissueMask:
-    def __init__(self, slide, masks=['whole_slide', 'red_pen', 'green_pen', 'blue_pen', 'black_pen'], result_path=None,
+    def __init__(self, slide, masks=None, result_path=None,
                  threshold=0.7):
         self.slide = slide
         self.SCALE = self.slide.SCALE
@@ -15,10 +16,10 @@ class TissueMask:
         self.id = self.slide.id
         self.result_path = result_path
         self.detected_tissue = np.count_nonzero(np.array(self.otsu_mask_threshold()[1]))
-        if masks == "default" or masks == "all":
-            self.masks_list = ['whole_slide', 'red_pen', 'green_pen', 'blue_pen', 'black_pen']
+        if masks is None:
+            self.masks_list = ['whole_slide', 'green_pen', 'red_pen', 'blue_pen', 'black_pen']
         else:
-            self.masks_list = masks
+            self.masks_list = list(masks)
 
         self.mask, self.applied = self.save_original_with_mask()
         self.applied = Image.fromarray(self.applied)
