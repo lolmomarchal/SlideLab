@@ -1,6 +1,7 @@
 # outside imports
 import argparse
 import csv
+
 import multiprocessing
 import os
 import shutil
@@ -340,6 +341,22 @@ def preprocess_patient(row, device, encoder_path, args):
     s, e = preprocessing(original, result, patient_id, device, encoder_path, args)
     print(f"done with patient {patient_id}")
     return s, e
+def extract_diagnosis(ID):
+    ID = ID.split("-")
+    diagnosis = ID[3]
+    tumor_identification =  ''.join([char for char in diagnosis if char.isdigit()])
+    if int(tumor_identification) >= 11:
+        return 0
+    else:
+        return 1
+def patient_files_encoded(patient_files_path):
+    df = pd.read_csv(patient_files_path)
+    for i, row in df.iterrows():
+        label = extract_diagnosis(row["Patient ID"])
+        encoded_path = os.path.join(os.path.dirname(row["Preprocessing Path"]), "encoded", row["Patient ID"] + ".h5")
+        df.loc[i, "target"] = label
+        df.loc[i, "Encoded Path"] = encoded_path
+    df.to_csv(patient_files_path)
 
 
 def parse_args():
@@ -410,6 +427,8 @@ def main():
     with multiprocessing.Pool(processes=processes, maxtasksperchild=1) as pool:
         results = pool.starmap(preprocess_patient,
                                [(row, device, encoder_path, args) for _, row in patients.iterrows()])
+    # rewrite patient_files
+    patient_files_encoded(patient_path)
 
     # write summary and error report
     global summary, errors
