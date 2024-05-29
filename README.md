@@ -10,7 +10,7 @@ To run whole pipeline :
 To run the `SlidePreprocessing.py` script, you need to have Python installed on your system along with the required dependencies listed in `requirements.txt`.
 
 To run individual classes: 
-Can create related objects and use their associated methods. Please see `Example.ipynb` and  `Masking Example.ipynb`.
+Can create related objects and use their associated methods. Please see `Example.ipynb` and  `Masking Examples.ipynb`.
 
 
 ### Dependencies
