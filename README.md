@@ -16,7 +16,7 @@ Can create related objects and use their associated methods. Please see `Example
 
 ```sh
 git clone  -r requirements.txt  https://github.com/lolmomarchal/WSI_preprocessing.git
-cd 
+cd WSI_preprocessing
 ```
 
 
@@ -31,7 +31,7 @@ or
 
 ```sh
 conda env create -f environment.yml
-conda activate WSI_Preprocessing
+conda activate WSI_preprocessing
 ```
 
 Arguments
