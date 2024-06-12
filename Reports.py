@@ -30,6 +30,8 @@ class Reports:
         columns = ["Sample ID", "Path", "Total Tiles", "Non-blurry Tiles"]
         summary = pd.DataFrame(self.summary, columns=columns)
         summary["Percentage of Tiles Passing QC"] = (summary["Non-blurry Tiles"] / summary["Total Tiles"]) * 100
+        # empty values -> error occurred so
+        summary = summary.fillna("N/A")
         summary.to_csv(self.summary_path, index=False)
 
     def error_report(self):
