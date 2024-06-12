@@ -1,11 +1,10 @@
 # outside imports
 import argparse
 import csv
-
 import multiprocessing
 import os
 import shutil
-import openslide
+
 import numpy as np
 import pandas as pd
 import torch
@@ -14,9 +13,9 @@ from PIL import Image
 # classes/functions
 import Reports
 import SlideEncoding
-import TileNormalization
 import TileQualityFilters
 import VisulizationUtils
+from TileNormalization import normalizeStaining
 from TissueMask import TissueMask
 from TissueSlide import TissueSlide
 
@@ -25,7 +24,7 @@ SlidePreprocessing.py
 
 Author: Lorenzo Olmo Marchal
 Created: March 5, 2024
-Last Updated:  May 29, 2024
+Last Updated:  June 12, 2024
 
 Description:
 This script automates the preprocessing and normalization of Whole Slide Images (WSI) in digital histopathology. 
@@ -62,13 +61,16 @@ Parameters:
 Returns:
     int: The calculated desired size for the tile.
 """
+    if mag > slide.magnification:
+        return None
+
     natural_mag = slide.magnification
     new_size = natural_mag / mag
     return int(size * new_size)
 
 
 def tiling(ts: TissueSlide, result_path: str, mask: TissueMask, overlap=OVERLAP, desired_size=DESIRED_SIZE,
-           mag=MAG) -> int:
+           mag=MAG, threshold=0.8) -> int:
     """
 Tiles the provided slide according to TissueMask
 
@@ -94,6 +96,9 @@ Returns:
     os.makedirs(os.path.join(result_path, "tiles"), exist_ok=True)
 
     size = best_size(ts, desired_size, mag)
+    if size is None:
+        errors.append((ts.id, ts.path, "The desired magnification is greater than the slide magnification.", "Tiling"))
+        return None
     w = ts.dimensions[0]
     h = ts.dimensions[1]
 
@@ -108,7 +113,7 @@ Returns:
                 tissue_rgb = ts.slide.read_region((x, y), 0, (size, size))
                 tile_mask = mask.get_region_mask((x, y), (size, size))
                 # get mask of tile
-                if mask.is_tissue(tile_mask):
+                if mask.is_tissue(tile_mask, threshold=threshold):
                     tile = tissue_rgb.convert("RGB")
                     tile = tile.resize((desired_size, desired_size))
                     tile.save(os.path.join(tiles,
@@ -155,9 +160,9 @@ def normalize_tiles(tile_information: str, result_path: str, device="cpu"):
             tile = np.array(Image.open(path_to_tile))
             if tile is not None:
                 # tile = torch.from_numpy(tile).to(device)
-                TileNormalization.normalizeStaining(tile,
-                                                    os.path.join(path,
-                                                                 f"{id}_tile_w{x}_h{y}_mag{mag}_size{size}_scale{scale}.png"))
+                normalizeStaining(tile,
+                                  os.path.join(path,
+                                               f"{id}_tile_w{x}_h{y}_mag{mag}_size{size}_scale{scale}.png"))
 
                 df_list.append({
                     'patient_id': id,
@@ -248,7 +253,8 @@ def move_svs_files(main_directory, results_path):
         if os.path.isdir(patient_path):
             # Look for SVS files in the patient directory
             for file_name in os.listdir(patient_path):
-                if file_name.endswith(".svs"):
+                if file_name.endswith((".svs", ".tif", ".dcm", ".ndpi", ".vms", ".vmu", ".scn", ".mrxs", ".tiff",
+                                       ".svslide", ".bif")):
                     svs_file_path = os.path.join(patient_path, file_name)
 
                     # Move the SVS file to the main directory
@@ -267,7 +273,8 @@ def patient_csv(input_path, results_path):
         if os.path.isdir(input_path):
             for file in os.listdir(input_path):
 
-                if file.endswith(".svs"):
+                if file.endswith((".svs", ".tif", ".dcm", ".ndpi", ".vms", ".vmu", ".scn", ".mrxs", ".tiff", ".svslide",
+                                  ".bif")):
 
                     patient_id = os.path.basename(file)
                     patient_id = patient_id.split(".")[0]
@@ -280,11 +287,7 @@ def patient_csv(input_path, results_path):
         else:
             patient_id = os.path.basename(input_path)
             patient_id = patient_id.split(".")[0]
-            print(patient_id)
-            print(f"results path : {results_path}")
             patient_result_path = os.path.join(results_path, patient_id)
-            print(f"directory: {patient_result_path}")
-
             if not os.path.exists(patient_result_path):
                 os.makedirs(patient_result_path)
 
@@ -303,30 +306,35 @@ def preprocessing(path, patient_path, patient_id, device, encoder_path, args):
 
     print(f"processing: {path}")
     if Tissue.slide is not None:
+        if args.desired_magnification <= Tissue.magnification:
+            tile_inf_path = os.path.join(patient_path, "tile_information.csv")
 
-        mask = TissueMask(Tissue, patient_path)
-        tile_inf_path = os.path.join(patient_path, "tile_information.csv")
+            if not os.path.isfile(tile_inf_path):
+                mask = TissueMask(Tissue, result_path=patient_path)
+                total_tiles = tiling(Tissue, patient_path, mask, mag=args.desired_magnification,
+                                     desired_size=args.desired_size, overlap=args.overlap,
+                                     threshold=args.tissue_threshold)
+            else:
+                total_tiles = len(pd.read_csv(tile_inf_path))
+            normalize_tiles_path = os.path.join(patient_path, "normalized_tile_information.csv")
+            if not os.path.isfile(normalize_tiles_path):
+                normalize_tiles(tile_inf_path, patient_path, device)
 
-        if not os.path.isfile(tile_inf_path):
-            total_tiles = tiling(Tissue, patient_path, mask)
+            in_focus_path = os.path.join(patient_path, "infocus_tile_information.csv")
+            if not os.path.isfile(in_focus_path):
+                blur = blurry_filter(normalize_tiles_path, patient_path, threshold=args.blur_threshold)
+            else:
+                blur = len(pd.read_csv(in_focus_path))
+
+            if args.tile_graph:
+                VisulizationUtils.SlideReconstruction(in_focus_path,
+                                                      os.path.join(patient_path, "Reconstructed_Slide.png"))
+
+            # Encoding
+            SlideEncoding.encode_tiles(patient_id, in_focus_path, encoder_path, device)
         else:
-            total_tiles = len(pd.read_csv(tile_inf_path))
-
-        normalize_tiles_path = os.path.join(patient_path, "normalized_tile_information.csv")
-        if not os.path.isfile(normalize_tiles_path):
-            normalize_tiles(tile_inf_path, patient_path, device)
-
-        in_focus_path = os.path.join(patient_path, "infocus_tile_information.csv")
-        if not os.path.isfile(in_focus_path):
-            blur = blurry_filter(normalize_tiles_path, patient_path, threshold=args.blur_threshold)
-        else:
-            blur = len(pd.read_csv(in_focus_path))
-
-        if RECONSTRUCT:
-            VisulizationUtils.SlideReconstruction(in_focus_path, os.path.join(patient_path, "Reconstructed_Slide.png"))
-
-        # Encoding
-        SlideEncoding.encode_tiles(patient_id, in_focus_path, encoder_path, device)
+            error.append((patient_id, path, "Desired magnification is greater than slide magnification", "Tiling"))
+            print("Desired magnification is greater than slide magnification")
 
     else:
         error.append((patient_id, path, "OpenSlide had an error with opening the provided slide.", "Slide Opening"))
@@ -341,14 +349,18 @@ def preprocess_patient(row, device, encoder_path, args):
     s, e = preprocessing(original, result, patient_id, device, encoder_path, args)
     print(f"done with patient {patient_id}")
     return s, e
+
+
 def extract_diagnosis(ID):
     ID = ID.split("-")
     diagnosis = ID[3]
-    tumor_identification =  ''.join([char for char in diagnosis if char.isdigit()])
+    tumor_identification = ''.join([char for char in diagnosis if char.isdigit()])
     if int(tumor_identification) >= 11:
         return 0
     else:
         return 1
+
+
 def patient_files_encoded(patient_files_path):
     df = pd.read_csv(patient_files_path)
     for i, row in df.iterrows():
@@ -364,19 +376,19 @@ def parse_args():
     parser.add_argument("-i", "--input_path", type=str,
                         default=r"C:\Users\albao\Downloads\gdc_download_20240320_111546.230274",
                         help="Input path (default: %(default)s)")
-    parser.add_argument("-o", "--output_path", type=str, default=r"C:\Users\albao\Masters\WSI_final",
+    parser.add_argument("-o", "--output_path", type=str, default=r"C:\Users\albao\Masters\WSI_t",
                         help="Result path (default: %(default)s)")
-    parser.add_argument("-p", "--processes", type=int, default=1,
+    parser.add_argument("-p", "--processes", type=int, default=2,
                         help="Number of threads for multiprocessing (default: %(default)s)")
     parser.add_argument("-s", "--desired_size", type=int, default=256,
                         help="Desired size of the tiles (default: %(default)s)")
     parser.add_argument("-tg", "--tile_graph", action="store_true",
                         help="Flag to enable graphing of tiles")
-    parser.add_argument("-m", "--desired_magnification", type=int, default=20,
+    parser.add_argument("-m", "--desired_magnification", type=int, default=40,
                         help="Desired magnification level (default: %(default)s)")
     parser.add_argument("-ov", "--overlap", type=int, default=0,
                         help="Overlap between tiles (default: %(default)s)")
-    parser.add_argument("-th", "--tissue_threshold", type=float, default=0.7,
+    parser.add_argument("-th", "--tissue_threshold", type=float, default=0.8,
                         help="Threshold to consider a tile as Tissue(default: %(default)s)")
     parser.add_argument("-bh", "--blur_threshold", type=int, default=0.015,
                         help="Threshold for laplace filter variance (default: %(default)s)")
