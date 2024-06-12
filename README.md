@@ -12,6 +12,13 @@ To run the `SlidePreprocessing.py` script, you need to have Python installed on 
 To run individual classes: 
 Can create related objects and use their associated methods. Please see `Example.ipynb` and  `Masking Examples.ipynb`.
 
+### Installation
+
+```sh
+git clone  -r requirements.txt  https://github.com/lolmomarchal/WSI_preprocessing.git
+cd 
+```
+
 
 ### Dependencies
 
@@ -20,6 +27,13 @@ Before running the script, install the required dependencies:
 ```sh
 pip install -r requirements.txt 
 ```
+or 
+
+```sh
+conda env create -f environment.yml
+conda activate WSI_Preprocessing
+```
+
 Arguments
 ===
 ```sh
