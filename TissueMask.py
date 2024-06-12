@@ -9,10 +9,11 @@ from PIL import Image
 
 class TissueMask:
     def __init__(self, slide, masks=None, result_path=None,
-                 threshold=0.7):
+                 threshold=0.8):
         self.slide = slide
         self.SCALE = self.slide.SCALE
         self.thumbnail = self.slide.thumbnail
+        self.threshold = threshold
         self.id = self.slide.id
         self.result_path = result_path
         self.detected_tissue = np.count_nonzero(np.array(self.otsu_mask_threshold()[1]))
@@ -173,8 +174,8 @@ class TissueMask:
         pen_masks = [self.red_filter(np.array(self.thumbnail), **param) for param in parameters]
         combined_mask = np.any(pen_masks, axis=0)
         true_percentage = np.count_nonzero(combined_mask.astype(np.uint8)) / self.detected_tissue
-        # Check if the percentage exceeds 20%
-        if true_percentage > 0.2:
+        # Check if the percentage exceeds 80%
+        if true_percentage > 0.8:
             return ~np.zeros_like(combined_mask, dtype=np.uint8)
 
         return ~combined_mask.astype(bool)
