@@ -2,6 +2,7 @@ import os
 
 import h5py
 import pandas as pd
+import numpy as np
 import torch
 import torchvision.models as models
 import torchvision.transforms as transforms
@@ -22,10 +23,11 @@ def encoder(encoder_type=0, device='cpu'):
 
 def encode_tiles(patient_id, tile_path, result_path, device='cpu'):
     encoder_model = encoder(encoder_type=0, device=device)
-    patient_tiles = {}
-    read = pd.read_csv(tile_path)
+    read = pd.read_csv(tile_path).dropna()
+    read["path_to_slide"] = np.array(read["path_to_slide"])
     total_data = []
     patient_id = read["patient_id"].iloc[0]
+
 
     preprocess = transforms.Compose([transforms.ToTensor()])
     for i, row in read.iterrows():
@@ -40,7 +42,7 @@ def encode_tiles(patient_id, tile_path, result_path, device='cpu'):
         except Exception as e:
             print(f"Error processing tile {path_to_tile}: {e}")
     with h5py.File(os.path.join(result_path, str(patient_id) + ".h5"), "w") as hdf:
-        hdf.create_dataset('tile_paths', data=read["path_to_slide"])
+        hdf.create_dataset('tile_paths', data=read["path_to_slide"], dtype= h5py.string_dtype(encoding='utf-8'))
         hdf.create_dataset('x', data=read["x"])
         hdf.create_dataset('y', data=read["y"])
         hdf.create_dataset('scale', data=read["scale"])
