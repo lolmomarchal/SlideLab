@@ -1,18 +1,10 @@
-OPENSLIDE_PATH = r"C:\Users\albao\Downloads\openslide-win64-20231011\openslide-win64-20231011\bin"
 import os
-
-if hasattr(os, 'add_dll_directory'):
-    # Windows
-    with os.add_dll_directory(OPENSLIDE_PATH):
-        import openslide
-else:
-    import openslide
 import openslide
 import numpy as np
 
 
 class TissueSlide:
-    def __init__(self, slide_path):
+    def __init__(self, slide_path, ID=None):
         """
       Initializes a TissueSlide object.
       Parameters:
@@ -27,8 +19,10 @@ class TissueSlide:
             self.thumbnail = self.slide.get_thumbnail(
                 (self.slide.dimensions[0] // self.SCALE, self.slide.dimensions[1] // self.SCALE))
             self.dimensions = self.slide.dimensions
-            self.id = os.path.basename(self.path).split(".")[0]
-            # self.path.split("\\")[-1].split("."))[0]
+            if ID is not None:
+                self.id = ID
+            else:
+                self.id = os.path.basename(self.path).split(".")[0]
         except openslide.OpenSlideError as e:
             print(f"An error occurred while opening the slide: {e}")
             self.slide = None

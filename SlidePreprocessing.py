@@ -300,7 +300,7 @@ def patient_csv(input_path, results_path):
 
 
 def preprocessing(path, patient_path, patient_id, device, encoder_path, args):
-    Tissue = TissueSlide(path)
+    Tissue = TissueSlide(path, ID = patient_id)
     total_tiles = None
     blur = None
     error = []

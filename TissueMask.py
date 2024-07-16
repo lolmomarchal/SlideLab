@@ -1,4 +1,3 @@
-
 import os
 
 import cv2
@@ -59,36 +58,26 @@ class TissueMask:
         return thres, thres_img, img_c
 
     def remove_small_objects(self, binary_mask: np.array, min_size=None, default=True, avoid_overmask=True,
-                             overmask_thresh=95,
-                             kernel_size=1):
-        """
-        Remove small objects from a binary mask.
-        """
+                             overmask_thresh=95, kernel_size=2):
         if default:
-            min_size = binary_mask.shape[0] * binary_mask.shape[1] * 0.0001
-        else:
-            min_size = min_size
+            min_size = binary_mask.size * 0.0001
 
         num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(binary_mask.astype(np.uint8), connectivity=4)
 
-        if kernel_size is not None:
-            kernel = np.ones((kernel_size, kernel_size), np.uint8)
+        sizes = stats[1:, -1]
+        valid_labels = [i + 1 for i, size in enumerate(sizes) if size >= min_size]
 
-        for label in range(1, num_labels):
-            area = stats[label, cv2.CC_STAT_AREA]
-            if area < min_size:
-                binary_mask[labels == label] = 0
-
+        binary_mask = np.isin(labels, valid_labels).astype(np.uint8) * 255
         if avoid_overmask:
             mask_percentage = (np.sum(binary_mask) / binary_mask.size) * 100
             if mask_percentage >= overmask_thresh and min_size >= 1:
                 new_min_size = min_size // 2
-                binary_mask = self.remove_small_objects(binary_mask, new_min_size, False, avoid_overmask,
-                                                        overmask_thresh)
+                return self.remove_small_objects(binary_mask, new_min_size, False, avoid_overmask, overmask_thresh,
+                                                 kernel_size)
 
-        if kernel_size is not None:
-            binary_mask = cv2.dilate(binary_mask.astype(np.uint8), kernel)
-        return binary_mask
+        if kernel_size > 1:
+            kernel = np.ones((kernel_size, kernel_size), np.uint8)
+            binary_mask = cv2.dilate(binary_mask, kernel)
 
     def combined_mask(self):
         mask_methods = self.masks_list
