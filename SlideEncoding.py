@@ -38,7 +38,7 @@ def encode_tiles(patient_id, tile_path, result_path, device='cpu'):
                 tile = preprocess(tile).unsqueeze(0).to(device)
                 with torch.no_grad():
                     encoded_features = encoder_model(tile)
-                total_data.append(encoded_features.squeeze())
+                total_data.append(encoded_features.squeeze().cpu())
         except Exception as e:
             print(f"Error processing tile {path_to_tile}: {e}")
     with h5py.File(os.path.join(result_path, str(patient_id) + ".h5"), "w") as hdf:
