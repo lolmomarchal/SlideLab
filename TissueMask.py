@@ -5,7 +5,21 @@ import matplotlib.pyplot as plt
 import numpy as np
 from skimage import morphology
 import openslide
+import numba
 
+@numba.njit
+def is_tissue( masked_region, threshold=0.7):
+        tissue = np.count_nonzero(masked_region)
+        total_elements = masked_region.size
+        if total_elements == 0:
+            return False
+        return tissue / total_elements >= threshold
+@numba.njit
+def get_region_mask(mask, scale, original_size, size):
+    mask_region_location = (original_size[0] // scale, original_size[1] // scale)
+    mask_region_size = (size[0] // scale, size[1] // scale)
+    return mask[mask_region_location[1]:mask_region_location[1] + mask_region_size[1],
+           mask_region_location[0]:mask_region_location[0] + mask_region_size[0]]
 
 class TissueMask:
     def __init__(self, slide, masks=None, result_path=None,
@@ -14,7 +28,10 @@ class TissueMask:
         if type(slide) == openslide.OpenSlide:
             self.slide = slide
             self.magnification = int(self.slide.properties.get("openslide.objective-power"))
-            self.SCALE = int(self.slide.level_downsamples[-1])
+            if SCALE is not None:
+                self.SCALE = SCALE
+            else:
+                self.SCALE = int(self.slide.level_downsamples[-1])
             self.thumbnail = np.array(self.slide.get_thumbnail(
                 (self.slide.dimensions[0] // self.SCALE, self.slide.dimensions[1] // self.SCALE)))
         else:
@@ -30,8 +47,6 @@ class TissueMask:
         self.threshold = threshold
         self.otsu = self.otsu_mask_threshold()[1]
         self.result_path = result_path
-        if SCALE is not None:
-            self.SCALE = SCALE
 
         self.mask, self.applied = self.save_original_with_mask()
 
@@ -43,11 +58,23 @@ class TissueMask:
         return {"slide": self.slide, "masks_list used (self.mask_list)": self.masks_list, "thumbnail": self.thumbnail,
                 "save path": self.result_path, "id": self.id, "scale": self.SCALE, "mask": self.mask,
                 "mask applied to original slide": self.applied}
+    def get_mask_attributes(self):
+        return np.copy(self.mask), self.SCALE
 
     def is_tissue(self, masked_region, threshold=0.7):
-        tissue = np.count_nonzero(masked_region)
-        total_elements = masked_region.size
-        return tissue / total_elements >= threshold
+        try:
+            tissue = np.count_nonzero(masked_region)
+            total_elements = masked_region.size
+            if total_elements == 0:
+                return False
+
+            return tissue / total_elements >= threshold
+        except ValueError as e:
+            print( np.count_nonzero(masked_region))
+            print(masked_region)
+            print(masked_region.size)
+            print(e)
+
     # MASK METHODS
 
 
@@ -216,8 +243,8 @@ class TissueMask:
 
         true_percentage = np.count_nonzero(pen_mask.astype(np.uint8)) / np.count_nonzero(self.otsu)
 
-        # Check if the percentage exceeds 40%
-        if true_percentage > 0.4:
+        # Check if the percentage exceeds 20%
+        if true_percentage > 0.2:
             return ~np.zeros_like(pen_mask, dtype=np.uint8)
 
         #print(f"red pen : {time.time() - start}")
@@ -293,7 +320,11 @@ class TissueMask:
         mask = self.otsu
         if self.result_path is not None:
             plt.imsave(os.path.join(self.result_path, "original_slide.png"), self.thumbnail)
+        # fill in small holes
         small_objs = self.remove_small_holes(mask, default=True)
+        small_objs = self.remove_small_holes(~mask, default=True)
+        small_objs = ~small_objs
+
 
         return small_objs
 
