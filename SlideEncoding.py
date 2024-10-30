@@ -1,14 +1,13 @@
 import os
-
 import h5py
 import pandas as pd
 import numpy as np
 import torch
 import torchvision.models as models
 import torchvision.transforms as transforms
-from PIL import Image
+from skimage.io import imread  
+import time
 from torchvision.models import ResNet50_Weights
-
 
 def encoder(encoder_type=0, device='cpu'):
     if encoder_type == 0:
@@ -17,35 +16,49 @@ def encoder(encoder_type=0, device='cpu'):
         encoder_model = torch.nn.Sequential(*list(encoder_model.children())[:-1])
         encoder_model.eval()
         encoder_model.to(device)
-    # option 1: histopathology trained
     return encoder_model
 
+def preprocess_image(path_to_tile, device='cpu'):
+    preprocess = transforms.Compose([transforms.ToTensor()])
+    try:
+        tile = imread(path_to_tile) =
+        if tile is not None:
+            tile = preprocess(tile).unsqueeze(0).to(device)
+            return tile
+        else:
+            return None
+    except Exception as e:
+        print(f"Error processing tile {path_to_tile}: {e}")
+        return None
 
 def encode_tiles(patient_id, tile_path, result_path, device='cpu'):
+    print(tile_path)
+    start = time.time()
     encoder_model = encoder(encoder_type=0, device=device)
+
     read = pd.read_csv(tile_path).dropna()
-    read["path_to_slide"] = np.array(read["path_to_slide"])
+    read["tile_path"] = np.array(read["tile_path"])
     total_data = []
-    patient_id = read["patient_id"].iloc[0]
 
+    for path in read["tile_path"]:
+        tile = preprocess_image(path, device)
+        if tile is not None:
+            with torch.no_grad():
+                encoded_feature = encoder_model(tile).squeeze().cpu()
+            total_data.append(encoded_feature)
 
-    preprocess = transforms.Compose([transforms.ToTensor()])
-    for i, row in read.iterrows():
-        path_to_tile = row["path_to_slide"]
-        try:
-            tile = Image.open(path_to_tile)
-            if tile is not None:
-                tile = preprocess(tile).unsqueeze(0).to(device)
-                with torch.no_grad():
-                    encoded_features = encoder_model(tile)
-                total_data.append(encoded_features.squeeze().cpu())
-        except Exception as e:
-            print(f"Error processing tile {path_to_tile}: {e}")
-    with h5py.File(os.path.join(result_path, str(patient_id) + ".h5"), "w") as hdf:
-        hdf.create_dataset('tile_paths', data=read["path_to_slide"], dtype= h5py.string_dtype(encoding='utf-8'))
+    # print("finished encoding tiles")
+    finish_encoding = time.time()
+    print(f"Encoding time: {finish_encoding - start}")
+
+    #total_data = [data for data in total_data if data.numel() < 2048]
+
+    with h5py.File(os.path.join(result_path, f"{patient_id}.h5"), "w") as hdf:
+        hdf.create_dataset('tile_paths', data=read["tile_path"], dtype=h5py.string_dtype(encoding='utf-8'))
         hdf.create_dataset('x', data=read["x"])
         hdf.create_dataset('y', data=read["y"])
         hdf.create_dataset('scale', data=read["scale"])
-        hdf.create_dataset('mag', data=read["magnification"])
-        hdf.create_dataset('size', data=read["size"])
-        features_dataset = hdf.create_dataset('features', data=torch.stack(total_data))
+        hdf.create_dataset('mag', data=read["desired_magnification"])
+        hdf.create_dataset('size', data=read["desired_size"])
+        hdf.create_dataset('features', data=torch.stack(total_data))
+    # print(f"Finished writing to HDF5 in {time.time() - finish_encoding} seconds")
