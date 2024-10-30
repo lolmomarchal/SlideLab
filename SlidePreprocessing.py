@@ -1,32 +1,42 @@
 # outside imports
 import argparse
 import csv
+import gc
+import shutil
 import multiprocessing
 import os
-import shutil
-
+import openslide
 import numpy as np
 import pandas as pd
 import torch
 from PIL import Image
-
+import h5py
+import time
+# import line_profiler
+# from line_profiler import profile
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+from multiprocessing import Pool, cpu_count
+import numba
 # classes/functions
 import Reports
 import SlideEncoding
 import TileNormalization
 import TileQualityFilters
+from TissueMask import is_tissue, get_region_mask
 import VisulizationUtils
 from TissueMask import TissueMask
 from TissueSlide import TissueSlide
-import os
 
-os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
+
+
+os.environ['KMP_DUPLICATE_LIB_OK']='True'
+
 """
 SlidePreprocessing.py
 
 Author: Lorenzo Olmo Marchal
 Created: March 5, 2024
-Last Updated:  May 29, 2024
+Last Updated:  Oct 14,  2024
 
 Description:
 This script automates the preprocessing and normalization of Whole Slide Images (WSI) in digital histopathology. 
@@ -43,206 +53,311 @@ within the WSI file.
 summary = []
 errors = []
 
-def best_size(slide: TissueSlide, size, mag) -> int:
-    """
-Determines the best size for a tile based on its magnification compared to a reference value.
-
-i.e. if natural magnification = 40 and desired magnification = 20 with size 256, return 512
-
-Parameters:
-    slide (Slide): The slide object representing the image.
-    magnification_reference (int, optional): The reference magnification used for scaling. Defaults to 20.
-    size (int, optional): The base size for the image. Defaults to 256.
-
-Returns:
-    int: The calculated desired size for the tile.
-"""
-    natural_mag = slide.magnification
-    new_size = natural_mag / mag
-    return int(size * new_size)
 
 
-def tiling(ts: TissueSlide, result_path: str, mask: TissueMask, overlap=0, desired_size=256,
-           mag=20) -> int:
-    """
-Tiles the provided slide according to TissueMask
+def preprocess_patient(row, device, encoder_path, args):
+    result = row["Preprocessing Path"]
+    original = row["Original Slide Path"]
+    patient_id = row["Patient ID"]
+    s, e = preprocessing(original, result, patient_id, device, encoder_path, args)
+    print(f"done with patient {patient_id}")
+    return s, e
 
-Parameters:
-    ts (Slide): The slide object representing the image.
-    result_path (int, optional): Where the tiles should be saved.
-    mask (TissueMask): mask of the image.
-    overlap (bool): if there should be an overlap between tiles.
-    desired_size (int, optional): The base size for the tile. Defaults to 256.
 
-Returns:
-    int: Number of tiles found.
+def extract_diagnosis(ID):
+    ID = ID.split("-")
+    diagnosis = ID[3]
+    tumor_identification = ''.join([char for char in diagnosis if char.isdigit()])
+    if int(tumor_identification) >= 11:
+        return 0
+    else:
+        return 1
 
-"""
-    print("Tiling slide")
-    # Make tile dir
-    if not os.path.exists(result_path):
-        os.makedirs(result_path)
-    tiles = os.path.join(result_path, "tiles")
+def patient_files_encoded(patient_files_path):
+    df = pd.read_csv(patient_files_path)
+    for i, row in df.iterrows():
+#         label = extract_diagnosis(row["Patient ID"])
+        encoded_path = os.path.join(os.path.dirname(row["Preprocessing Path"]), "encoded", row["Patient ID"] + ".h5")
+#         df.loc[i, "target"] = label
+        df.loc[i, "Encoded Path"] = encoded_path
+    df.to_csv(patient_files_path)
 
-    columns = ['patient_id', 'x', 'y', 'magnification', 'size', 'path_to_slide', 'scale']
-    df_list = []
-    os.makedirs(os.path.join(result_path, "tiles"), exist_ok=True)
 
-    size = best_size(ts, desired_size, mag)
-    w = ts.dimensions[0]
-    h = ts.dimensions[1]
 
-    if overlap != 0:
-        stride = desired_size // overlap
+# ----------------------- PREPROCESSING -----------------------------------
+# General helper methods
+
+# getting best size for the
+def best_size(desired_mag, natural_mag, desired_size) -> int:
+    new_size = natural_mag/desired_mag
+    return int(desired_size * new_size)
+
+def get_valid_coordinates(width, height, overlap, mask, size, scale ,threshold):
+    # example overlap of 2 and size of 256 = 128 stride
+    if overlap != 1:
+        stride = size/overlap
     else:
         stride = size
+    x_coords = np.arange(0, width - size + stride , stride)
+    y_coords = np.arange(0, height - size + stride , stride)
+    coordinates = np.array(np.meshgrid(x_coords, y_coords)).T.reshape(-1, 2)
+    total_cords = coordinates.shape[0]
+    # valid coordinates according to mask
+    valid_coords = [coord for coord in coordinates if is_tissue(get_region_mask(mask, scale, coord, (size, size)), threshold = threshold)]
+    return total_cords, len(valid_coords), valid_coords
 
-    for x in range(0, w - size + 1, stride):
-        for y in range(0, h - size + 1, stride):
-            if x <= w - size and y <= h - size:
-                tissue_rgb = ts.slide.read_region((x, y), 0, (size, size))
-                tile_mask = mask.get_region_mask((x, y), (size, size))
-                # get mask of tile
-                if mask.is_tissue(tile_mask):
-                    tile = tissue_rgb.convert("RGB")
-                    tile = tile.resize((desired_size, desired_size))
-                    tile.save(os.path.join(tiles,
-                                           f"{ts.id}_tile_w{x}_h{y}_mag{mag}_size{desired_size}_scale{ts.SCALE}.png"))
-                    df_list.append({
-                        'patient_id': ts.id,
-                        'x': x,
-                        'y': y,
-                        'magnification': mag,
-                        'size': desired_size,
-                        'path_to_slide': os.path.join(tiles,
-                                                      f"{ts.id}_tile_w{x}_h{y}_mag{mag}_size{desired_size}_scale{ts.SCALE}.png"),
-                        'scale': ts.SCALE
-                    })
-    df = pd.DataFrame(df_list, columns=columns)
+# num_workers = cpu_count()
+# if num_workers>4:
+#     num_workers = 4
+# pool = Pool(num_workers)
+# iterable = [(coord, mask, scale, size, threshold) for coord in coordinates]
+# # valid coordinates according to mask
+# results = pool.starmap(process_candidate_coordinates, iterable)
+# pool.close()
+# valid_coords = np.array([result for result in results if result])
+# return total_cords, len(valid_coords), valid_coords
+# def process_candidate_coordinates(coord, mask, scale, size, threshold):
+#     return is_tissue(get_region_mask(mask, scale, coord, (size, size)), threshold = threshold)
+# H5 file methods
 
-    df.to_csv(os.path.join(result_path, "tile_information.csv"), index=False)
-    return len(df)
+# general method for tiling slide
+def tile_slide_image(coord, desired_size, adjusted_size,patient_id, sample_path, slide, desired_mag):
+    tile = slide.read_region((coord[0], coord[1]), 0, (adjusted_size, adjusted_size)).convert('RGB').resize((desired_size, desired_size), Image.BILINEAR)
+    image_path = os.path.join(sample_path, f"{patient_id}_{coord[0]}_{coord[1]}_size_{desired_size}_mag_{desired_mag}.png")
+    tile.save(image_path)
+    return {"Patient_ID": patient_id, "x":coord[0], "y": coord[1], "tile_path": image_path,"original_size":adjusted_size, "desired_size": desired_size, "desired_magnification": desired_mag}
+
+def tile_slide_normalize_image(coord, desired_size, adjusted_size,patient_id, sample_path, slide, desired_mag):
+    #global slide
+    tile = slide.read_region((coord[0], coord[1]), 0, (adjusted_size, adjusted_size)).convert('RGB').resize((desired_size, desired_size), Image.BILINEAR)
+    tile_np = TileNormalization.normalizeStaining(np.array(tile))
+    if tile_np is None:
+        return None
+    image_path = os.path.join(sample_path, f"{patient_id}_{coord[0]}_{coord[1]}_size_{desired_size}_mag_{desired_mag}.png")
+    Image.fromarray(tile_np).save(image_path)
+    return {"Patient_ID": patient_id, "x":coord[0], "y": coord[1], "tile_path": image_path,"original_size":adjusted_size, "desired_size": desired_size, "desired_magnification": desired_mag}
+
+def tile_slide_normalize_blurry_image(coord, desired_size, adjusted_size,patient_id, sample_path, slide, desired_mag):
+    tile = slide.read_region((coord[0], coord[1]), 0, (adjusted_size, adjusted_size)).convert('RGB').resize((desired_size, desired_size), Image.BILINEAR)
+    tile_np = TileNormalization.normalizeStaining(np.array(tile))
+    if tile_np is None:
+        return None
+    if not TileQualityFilters.LaplaceFilter(tile_np):
+        image_path = os.path.join(sample_path, f"{patient_id}_{coord[0]}_{coord[1]}_size_{desired_size}_mag_{desired_mag}.png")
+        Image.fromarray(tile_np).save(image_path)
+        return {"Patient_ID": patient_id, "x":coord[0], "y": coord[1], "tile_path": image_path,"original_size":adjusted_size, "desired_size": desired_size, "desired_magnification": desired_mag}
+    return None
+# saving images
+
+# saving images
 
 
-def normalize_tiles(tile_information: str, result_path: str, device="cpu", original_tiles=True):
-    """
-   Normalizes the tiles
+def tile_normalize_slide_h5(args):
+    #global slide
+    coord, desired_size, adjusted_size, slide = args
+    tile = slide.read_region((coord[0], coord[1]), 0, (adjusted_size, adjusted_size)).convert('RGB').resize((desired_size, desired_size), Image.BILINEAR)
+    tile_np = TileNormalization.normalizeStaining(np.array(tile))
+    if tile_np is None:
+        return (None, tile_np)
+    return  (tile_np, coord)
+def tile_normalize_blurry_h5(args):
+    coord, desired_size, adjusted_size, slide = args
+    tile = slide.read_region((coord[0], coord[1]), 0, (adjusted_size, adjusted_size)).convert('RGB').resize((desired_size, desired_size), Image.BILINEAR)
+    tile_np = TileNormalization.normalizeStaining(np.array(tile))
+    if tile_np is None:
+        return (None, coord, None)
+    if TileQualityFilters.LaplaceFilter(tile_np):
+        return (tile_np, coord, True)
+    return (tile_np, coord, None)
 
-   Parameters:
-       tile_information (str): path to csv with all the tiles to be normalized .
-       result_path (str): path where the normalized tiles should be saved.
-   """
+def tile_slide_h5(args):
+    #global slide
+    coord, desired_size, adjusted_size, slide= args
+    tile = slide.read_region((coord[0], coord[1]), 0, (adjusted_size, adjusted_size)).convert('RGB').resize((desired_size, desired_size), Image.BILINEAR)
+    tile_np = np.array(tile)
+    return (tile_np, coord)
 
-    tiles = pd.read_csv(tile_information)
-    path = os.path.join(result_path, "normalized_tiles")
-    df_list = []
-    columns = ['patient_id', 'x', 'y', 'magnification', 'size', 'path_to_slide', 'scale']
-    os.makedirs(os.path.join(result_path, "normalized_tiles"), exist_ok=True)
-    for i, row in tiles.iterrows():
-        path_to_tile = row["path_to_slide"]
-        mag = row["magnification"]
-        size = row["size"]
-        y = row["y"]
-        x = row["x"]
-        id = row["patient_id"]
-        scale = row["scale"]
-        if original_tiles:
-            save_path = os.path.join(os.path.join(path, f"{id}_tile_w{x}_h{y}_mag{mag}_size{size}_scale{scale}.png"))
-        else:
-            save_path = path_to_tile
-        try:
-            tile = np.array(Image.open(path_to_tile))
-            if tile is not None:
-                # tile = torch.from_numpy(tile).to(device)
-                TileNormalization.normalizeStaining(tile,
-                                                    os.path.join(path,
-                                                                 f"{id}_tile_w{x}_h{y}_mag{mag}_size{size}_scale{scale}.png"))
+# Main preprocessing script
+"""
+- needs path to slide
+- patient_id 
+- device 
+- args -> from there can extract most things
+"""
+# @profile
+def preprocessing(path, patient_id, device,args):
 
-                df_list.append({
-                    'patient_id': id,
-                    'x': x,
-                    'y': y,
-                    'magnification': mag,
-                    'size': size,
-                    'path_to_slide': save_path,
-                    'scale': scale
-                })
+    print(f"working on {patient_id}")
+    error = []
+    summary = []
+    total_tiles = None
+    valid_tiles = None
+    blurry_tiles = None
+    time_mask = None
+    time_opening = None
+    time_coordinates = None
+    start = time.time()
+   # initialize_slide(path)
+    try:
+     slide = openslide.OpenSlide(path)
+    except:
+        slide = None
+    time_opening = time.time()-start
+    if slide is not None:
+
+        # if the desired magnification is greater than the slide's natural mag. cannot process
+        # you cannot go from 20x to 40x
+        natural_magnification =  int(slide.properties.get("openslide.objective-power"))
+        desired_magnification = args.desired_magnification
+        # if the natural magnification is greater or equal to the desired magnification that is ok
+        # ex: 40 -> 20 or 20 -> 20
+        if natural_magnification >= desired_magnification:
+
+            # need to create corresponding directory for patient
+            sample_path = os.path.join(args.output_path, patient_id)
+            # get mask
+            start_mask = time.time()
+            mask, scale = TissueMask(slide, result_path= sample_path).get_mask_attributes()
+            time_mask = time.time()-start_mask
+            w, h = slide.dimensions
+            # first need to get the size we want
+            desired_size = args.desired_size
+            adjusted_size = best_size(desired_magnification, natural_magnification, desired_size)
+            overlap = args.overlap
+            # getting valid coordinates according to TissueMask. Adding threshold
+            all_coords, valid_coordinates, coordinates = get_valid_coordinates(w, h, overlap, mask, adjusted_size,scale, threshold = args.tissue_threshold)
+            time_coordinates = time.time()-time_mask
+            total_tiles = all_coords
+            valid_tiles = valid_coordinates
+
+            max_workers = os.cpu_count()
+            if args.save_tiles:
+                tiles_path = os.path.join(sample_path, patient_id + ".csv")
+                tiles_dir = os.path.join(sample_path, "tiles")
+                os.makedirs(tiles_dir, exist_ok=True)
+                mult_args = [(coord, desired_size, adjusted_size,patient_id, tiles_dir, slide, desired_magnification) for coord in coordinates]
+
+                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    if not args.normalize_staining:
+                        results = list(executor.map(lambda p: tile_slide_image(*p), mult_args))
+                    elif args.normalize_staining and not args.remove_blurry_tiles:
+                        results = list(executor.map(lambda p: tile_slide_normalize_image(*p), mult_args))
+                    else:
+                        results = list(executor.map(lambda p: tile_slide_normalize_blurry_image(*p), mult_args))
+                results =  [result for result in results if result]
+                df_tiles = pd.DataFrame(results)
+                df_tiles["scale"] = scale
+                df_tiles["original_mag"] = natural_magnification
+                df_tiles.to_csv(os.path.join(tiles_path))
 
             else:
-                print("Error: Input tile is None.")
+                # creating h5 file + associated datasets
+                # tiles_path = os.path.join(sample_path, patient_id + ".h5")
+                # with h5py.File(tiles_path, 'w') as h5_file:
+                #     # Creating datasets
+                #     chunk_size_x = min(1024, valid_tiles)
+                #     chunk_size_y = min(1024, valid_tiles)
+                #
+                #     tile_dataset = h5_file.create_dataset(
+                #         'tiles', shape=(valid_tiles, desired_size, desired_size, 3), dtype=np.uint8,
+                #         chunks=(1, desired_size, desired_size, 3), compression='gzip', compression_opts=1
+                #     )
+                #
+                #     x_dataset = h5_file.create_dataset(
+                #         'x', shape=(valid_tiles,), dtype=np.int32,
+                #         chunks=(chunk_size_x,), compression='gzip', compression_opts=1
+                #     )
+                #
+                #     y_dataset = h5_file.create_dataset(
+                #         'y', shape=(valid_tiles,), dtype=np.int32,
+                #         chunks=(chunk_size_y,), compression='gzip', compression_opts=1
+                #     )
+                #
+                #     # Storing additional metadata as scalars
+                #     h5_file.create_dataset('scale', data=scale, dtype=np.int32)
+                #     h5_file.create_dataset('natural_mag', data=natural_magnification, dtype=np.int32)
+                #     h5_file.create_dataset('desired_mag', data=desired_magnification, dtype=np.int32)
+                #     h5_file.create_dataset('desired_size', data=desired_size, dtype=np.int32)
+                #     h5_file.create_dataset('path_to_slide', data=np.string_(path))
+                #     h5_file.create_dataset('Patient_ID', data=np.string_(patient_id))
+                    mult_args = [(coord, desired_size, adjusted_size, slide) for coord in coordinates]
+                    # batch_size = 512 # Adjust based on memory
+                    # tiles_batch = []
+                    # x_batch = []
+                    # y_batch = []
 
-        except Exception as e:
-            global errors
-            errors.append((id, path_to_tile, e, "Normalization"))
-    df = pd.DataFrame(df_list, columns=columns)
-    df.to_csv(os.path.join(result_path, "normalized_tile_information.csv"), index=False)
+                    i = 0
+                    tile_function = tile_slide_h5 if not args.normalize_staining else tile_normalize_slide_h5
+                    if args.normalize_staining and args.remove_blurry_tiles:
+                        tile_function = tile_normalize_blurry_h5
+
+                    # Configure the ThreadPoolExecutor with adjusted chunk size
+                    with ThreadPoolExecutor(max_workers=8) as executor:
+                        results = (result for result in executor.map(tile_function, mult_args) if result[0] is not None)
+                    tile_nps, x, y = [], [], []
+                    for result in results:
+                        tile_nps.append(result[0])
+                        x.append(result[1][0])
+                        y.append(result[1][1])
+                    tiles_path = os.path.join(sample_path, patient_id + ".h5")
+                    with h5py.File(tiles_path, 'w') as h5_file:
+                        h5_file.create_dataset('scale', data=scale, dtype=np.int32)
+                        h5_file.create_dataset('natural_mag', data=natural_magnification, dtype=np.int32)
+                        h5_file.create_dataset('desired_mag', data=desired_magnification, dtype=np.int32)
+                        h5_file.create_dataset('desired_size', data=desired_size, dtype=np.int32)
+                        h5_file.create_dataset('path_to_slide', data=np.string_(path))
+                        h5_file.create_dataset('Patient_ID', data=np.string_(patient_id))
+                        h5_file.create_dataset('x', data=np.array(x))
+                        h5_file.create_dataset('y', data=np.array(y))
+                        h5_file.create_dataset('tiles', data=np.stack(tile_nps), chunks=True, compression="gzip", compression_opts=9)
+                    del results
+                    del x
+                    del y
+                    gc.collect()
 
 
-def blurry_filter(tile_information, result_path, threshold=0.015, save_blurry=False):
+
+                        # batch_size_accumulated = batch_size * 2  # Adjust as needed to minimize I/O
+                        # tiles_batch = np.empty((batch_size_accumulated, desired_size, desired_size, 3), dtype=np.uint8)
+                        # x_batch = np.empty((batch_size_accumulated,), dtype=int)
+                        # y_batch = np.empty((batch_size_accumulated,), dtype=int)
+                        #
+                        #
+                        # for idx, result in enumerate(executor.map(tile_function, mult_args, chunksize=20)):
+                        #     tile_np, coord = result[:2]
+                        #     if tile_np is not None:
+                        #         index = idx % batch_size_accumulated
+                        #         tiles_batch[index] = tile_np
+                        #         x_batch[index] = coord[0]
+                        #         y_batch[index] = coord[1]
+                        #
+                        #         # Write when reaching the accumulated batch size
+                        #         if (index + 1) == batch_size_accumulated:
+                        #             tile_dataset[i:i + batch_size_accumulated] = tiles_batch
+                        #             x_dataset[i:i + batch_size_accumulated] = x_batch
+                        #             y_dataset[i:i + batch_size_accumulated] = y_batch
+                        #             i += batch_size_accumulated
+
+            slide.close()
+            gc.collect()
+        else:
+            error.append((patient_id, path, f"The slide's natural magnification is less than the desired magnification. {natural_magnification}x cannot be transformed into {desired_magnification}x", "Magnification Sanity Check"))
+
+    else:
+        error.append((patient_id, path, "OpenSlide had an error with opening the provided slide.", "Slide Opening"))
+
+    end = time.time() - start
+    summary.append((patient_id, path, total_tiles, valid_tiles, blurry_tiles, end, time_opening, time_mask, time_coordinates))
+    print(summary)
+    return summary, error
+# ----------------------- FILE HANDLING -----------------------------------
+
+
+def move_svs_files(main_directory):
     """
-Removes any tiles that might be blurry using a laplacian filter
-
-Parameters:
-   tile_information (str): path to csv with all the tiles to be checked (normalized tiles).
-   result_path (str): path where the tiles that passed should be saved.
-"""
-    print("removing blurry tiles")
-
-    tiles = pd.read_csv(tile_information)
-
-    # creating folders for both in focus and out of focus tiles for efficacy of filter
-    path = os.path.join(result_path, "infocus_tiles")
-    blurry_path = os.path.join(result_path, "blurry_tiles")
-
-    os.makedirs(os.path.join(result_path, "infocus_tiles"), exist_ok=True)
-    if save_blurry:
-        os.makedirs(blurry_path, exist_ok=True)
-
-    # creating csv for ease of use access
-    df_list = []
-    columns = ['patient_id', 'x', 'y', 'magnification', 'size', 'path_to_slide', 'scale']
-    for i, row in tiles.iterrows():
-        path_to_tile = row["path_to_slide"]
-        mag = row["magnification"]
-        size = row["size"]
-        y = row["y"]
-        x = row["x"]
-        id = row["patient_id"]
-        scale = row["scale"]
-        try:
-            tile = np.array(Image.open(path_to_tile))
-            if tile is not None:
-                not_blurry = TileQualityFilters.LaplaceFilter(tile, var_threshold=threshold)
-                if not_blurry:
-                    img = Image.open(path_to_tile)
-                    img.save(os.path.join(path, f"{id}_tile_w{x}_h{y}_mag{mag}_size{size}_scale{scale}.png"))
-                    df_list.append({
-                        'patient_id': id,
-                        'x': x,
-                        'y': y,
-                        'magnification': mag,
-                        'size': size,
-                        'path_to_slide': path_to_tile,
-                        'scale': scale
-                    })
-                else:
-                    if save_blurry:
-                        img = Image.open(path_to_tile)
-                        img.save(os.path.join(path, f"{id}_tile_w{x}_h{y}_mag{mag}_size{size}_scale{scale}.png"))
-
-        except Exception as e:
-            print(f"An error occurred: {e}")
-            global errors
-            errors.append((id, path_to_tile, e, "Blur filter."))
-
-    df = pd.DataFrame(df_list, columns=columns)
-    df.to_csv(os.path.join(result_path, "infocus_tile_information.csv"), index=False)
-    return len(df)
-
-
-def move_svs_files(main_directory, results_path):
-    # Create a CSV file to store patient ID and SVS file paths
-
+    Used to handle directories where WSI files are stored in subdirectories (like downloading it from portal.gdc)
+    :param main_directory: directory where the WSI are stored (from the allowed file extensions from OpenSlide)
+    """
     # Iterate through each patient directory
     for patient_directory in os.listdir(main_directory):
         patient_path = os.path.join(main_directory, patient_directory)
@@ -259,8 +374,14 @@ def move_svs_files(main_directory, results_path):
                     # Move the SVS file to the main directory
                     shutil.move(svs_file_path, main_directory)
 
-
 def patient_csv(input_path, results_path):
+    """
+    This method creates a csv file with important information about the patients being handled. This includes the sample ID,
+    where the original WSI is located and where the preprocessing results are located.
+    :param input_path original directory
+    :param results_path final directory
+    :returns csv file path with the preprocessing information
+    """
     csv_file_path = os.path.join(results_path, "patient_files.csv")
     with open(csv_file_path, 'w', newline='') as csvfile:
 
@@ -299,77 +420,7 @@ def patient_csv(input_path, results_path):
     return csv_file_path
 
 
-def preprocessing(path, patient_path, patient_id, device, encoder_path, args):
-    Tissue = TissueSlide(path, ID = patient_id)
-    total_tiles = None
-    blur = None
-    error = []
-    summary = []
-
-    print(f"processing: {path}")
-    if Tissue.slide is not None:
-        tile_inf_path = os.path.join(patient_path, "tile_information.csv")
-        if not os.path.isfile(tile_inf_path):
-            mask = TissueMask(Tissue, result_path=patient_path)
-            total_tiles = tiling(Tissue, patient_path, mask,overlap =args.overlap, desired_size = args.desired_size, mag = args.desired_magnification)
-        else:
-            total_tiles = len(pd.read_csv(tile_inf_path))
-        # normalization
-        normalize_tiles_path = os.path.join(patient_path, "normalized_tile_information.csv")
-        if not os.path.isfile(normalize_tiles_path) and args.normalize_staining:
-            normalize_tiles(tile_inf_path, patient_path, device, original_tiles=args.save_original_tiles)
-            if not args.save_original_tiles:
-                shutil.rmtree(os.path.join(patient_path, "tiles"))
-
-            os.rename(os.path.join(patient_path, "normalized_tiles"), os.path.join(patient_path, "tiles"))
-
-        in_focus_path = os.path.join(patient_path, "infocus_tile_information.csv")
-        if not os.path.isfile(in_focus_path) and args.remove_blurry_tiles:
-            if args.normalize_staining:
-                blur = blurry_filter(normalize_tiles_path, patient_path, threshold=args.blur_threshold)
-            else:
-                blur = blurry_filter(tile_inf_path, patient_path, threshold=args.blur_threshold)
-            shutil.rmtree(os.path.join(patient_path, "tiles"))
-            os.rename(os.path.join(patient_path, "infocus_tiles"), os.path.join(patient_path, "tiles"))
-        elif os.path.isfile(in_focus_path) and args.remove_blurry_tiles:
-            blur = len(pd.read_csv(in_focus_path))
-
-        if args.tile_graph:
-            VisulizationUtils.SlideReconstruction(in_focus_path, os.path.join(patient_path, "Reconstructed_Slide.png"))
-    else:
-        error.append((patient_id, path, "OpenSlide had an error with opening the provided slide.", "Slide Opening"))
-    summary.append((patient_id, path, total_tiles, blur))
-    return summary, error
-
-
-def preprocess_patient(row, device, encoder_path, args):
-    result = row["Preprocessing Path"]
-    original = row["Original Slide Path"]
-    patient_id = row["Patient ID"]
-    s, e = preprocessing(original, result, patient_id, device, encoder_path, args)
-    print(f"done with patient {patient_id}")
-    return s, e
-
-
-def extract_diagnosis(ID):
-    ID = ID.split("-")
-    diagnosis = ID[3]
-    tumor_identification = ''.join([char for char in diagnosis if char.isdigit()])
-    if int(tumor_identification) >= 11:
-        return 0
-    else:
-        return 1
-
-
-def patient_files_encoded(patient_files_path):
-    df = pd.read_csv(patient_files_path)
-    for i, row in df.iterrows():
-        label = extract_diagnosis(row["Patient ID"])
-        encoded_path = os.path.join(os.path.dirname(row["Preprocessing Path"]), "encoded", row["Patient ID"] + ".h5")
-        df.loc[i, "target"] = label
-        df.loc[i, "Encoded Path"] = encoded_path
-    df.to_csv(patient_files_path)
-
+# --------------------------- MAIN ----------------------------------------------------
 
 def parse_args():
     parser = argparse.ArgumentParser(description="WSI Preprocessing")
@@ -388,7 +439,7 @@ def parse_args():
                         help="Flag to enable graphing of tiles")
     parser.add_argument("-m", "--desired_magnification", type=int, default=20,
                         help="Desired magnification level (default: %(default)s)")
-    parser.add_argument("-ov", "--overlap", type=int, default=0,
+    parser.add_argument("-ov", "--overlap", type=int, default=1,
                         help="Overlap between tiles (default: %(default)s)")
     parser.add_argument("-th", "--tissue_threshold", type=float, default=0.7,
                         help="Threshold to consider a tile as Tissue(default: %(default)s)")
@@ -404,6 +455,7 @@ def parse_args():
                         help="Flag to encode tiles and creae associated .h5 file")
     parser.add_argument("--save_original_tiles", action="store_true",
                         help="Flag to save the original, unnormalized tiles")
+    parser.add_argument("--save_tiles", action = "store_true", help = "Flag to save the tiles in png form instead than in a h5 file. Warning this will be slower.")
 
     return parser.parse_args()
 
@@ -412,49 +464,57 @@ def main():
     args = parse_args()
 
     # obtain args
-
+    # getting basic arguments for preprocessing
     input_path = args.input_path
     output_path = args.output_path
     processes = args.processes
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # raise error if invalid input path
     if not os.path.exists(input_path):
         raise FileNotFoundError(f"The file '{input_path}' does not exist.")
 
+    # making output directory
     if not os.path.exists(output_path):
         os.makedirs(output_path)
 
-    if not os.path.exists(os.path.join(output_path, "encoded")):
+    # making encoding directory only if encoding
+    if not os.path.exists(os.path.join(output_path, "encoded")) and args.encode:
         os.makedirs(os.path.join(output_path, "encoded"))
     encoder_path = os.path.join(output_path, "encoded")
 
-    # to handle if given directory of svs files
+    # to handle if given directory of svs files (like getting it from the TCGA directory)
     if os.path.isdir(input_path):
-        move_svs_files(input_path, output_path)
+        move_svs_files(input_path)
 
     # create a csv with information about the samples available
     patient_path = patient_csv(input_path, output_path)
-    # can then read the information to do multiprocessing of samples
     patients = pd.read_csv(patient_path)
 
-    # multiprocessing of sample preprocessing
-    with multiprocessing.Pool(processes=processes, maxtasksperchild=1) as pool:
-        results = pool.starmap(preprocess_patient,
-                               [(row, device, encoder_path, args) for _, row in patients.iterrows()])
-    # encode files
+    # # process samples, will be multiprocessing the instances.
+    results = []
     for i, row in patients.iterrows():
+        results.append(preprocessing(row["Original Slide Path"], row["Patient ID"], device,args))
 
-        patient_id = row["Patient ID"]
-        if not os.path.isfile(os.path.join(encoder_path, str(patient_id) + ".h5")):
-            if args.remove_blurry_tiles:
-                path = os.path.join(output_path, patient_id, "infocus_tile_information.csv")
-            elif args.normalize_staining:
-                path = os.path.join(output_path, patient_id, "normalized_tile_information.csv")
+    # after processing samples, obtain encodings. do the same thing where you multiprocess instances unless gpu is available
+
+    # # multiprocessing of sample preprocessing
+    # with multiprocessing.Pool(processes=processes, maxtasksperchild=1) as pool:
+    #     results = pool.starmap(preprocess_patient,
+    #                            [(row, device, encoder_path, args) for _, row in patients.iterrows()])
+    # encode files
+    if args.encode:
+        for i, row in patients.iterrows():
+
+            patient_id = row["Patient ID"]
+            if args.save_tiles:
+                    path = os.path.join(output_path, patient_id, patient_id +".csv")
             else:
-                path = os.path.join(output_path, patient_id, "tile_information.csv")
-            SlideEncoding.encode_tiles(patient_id, path, encoder_path, device)
-    # rewrite patient_files
+                    path = os.path.join(output_path, patient_id, patient_id + ".h5")
+
+            if not os.path.isfile(os.path.join(encoder_path, str(patient_id) + ".h5")):
+                SlideEncoding.encode_tiles(patient_id, path, encoder_path, device)
+    # # rewrite patient_files
     patient_files_encoded(patient_path)
 
     # write summary and error report
@@ -462,7 +522,6 @@ def main():
     for res in results:
         summary.extend(res[0])
         errors.extend(res[1])
-
     Reports.Reports(summary, errors, output_path)
 
 
