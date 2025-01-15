@@ -1,11 +1,11 @@
-name: SlideLab
+name: slidelab
 channels:
-  - nvidia
-  - conda-forge
-  - bioconda
   - anaconda
+  - nvidia
   - pytorch
-  - defaults
+  - conda-forge
+  - https://repo.anaconda.com/pkgs/main
+  - https://repo.anaconda.com/pkgs/r
 dependencies:
   - _libgcc_mutex=0.1=conda_forge
   - _openmp_mutex=4.5=2_gnu
@@ -23,15 +23,16 @@ dependencies:
   - bzip2=1.0.8=hd590300_5
   - c-ares=1.28.1=hd590300_0
   - c-blosc2=2.15.0=h6d6b9e4_1
-  - ca-certificates=2024.7.4=hbcca054_0
+  - ca-certificates=2024.12.14=hbcca054_0
   - cached-property=1.5.2=hd8ed1ab_1
   - cached_property=1.5.2=pyha770c72_1
   - cairo=1.18.0=hbb29018_2
-  - certifi=2024.7.4=pyhd8ed1ab_0
+  - certifi=2024.12.14=pyhd8ed1ab_0
   - cffi=1.16.0=py312hf06ca03_0
   - cfitsio=4.4.1=hf8ad068_0
   - charls=2.4.2=h59595ed_0
   - charset-normalizer=3.3.2=pyhd8ed1ab_0
+  - colorama=0.4.6=pyhd8ed1ab_1
   - contourpy=1.2.1=py312h8572e83_0
   - cpuonly=2.0=0
   - cuda-cudart=11.8.89=0
@@ -158,6 +159,7 @@ dependencies:
   - libjxl=0.10.2=hcae5a98_0
   - liblapack=3.9.0=22_linux64_openblas
   - liblapacke=3.9.0=22_linux64_openblas
+  - libllvm14=14.0.6=hcd5def8_4
   - libllvm15=15.0.7=hb3ce162_4
   - libllvm18=18.1.8=hc9dba70_0
   - libmatio=1.5.27=hd8a4993_0
@@ -210,6 +212,7 @@ dependencies:
   - libxml2=2.12.7=hc051c1a_1
   - libzlib=1.3.1=h4ab18f5_1
   - libzopfli=1.0.3=h9c3ff4c_0
+  - llvmlite=0.43.0=py312h9c5d478_0
   - lz4-c=1.9.4=hcb278e6_0
   - markupsafe=2.1.5=py312h98912ed_0
   - matplotlib=3.8.4=py312h7900ff3_2
@@ -227,6 +230,7 @@ dependencies:
   - nomkl=1.0=h5ca1d4c_0
   - nspr=4.35=h27087fc_0
   - nss=3.102=h593d115_0
+  - numba=0.60.0=py312h83e6fd3_0
   - numexpr=2.10.0=py312hf412c99_100
   - numpy=1.26.0=py312h2809609_0
   - numpy-base=1.26.0=py312he1a6c75_0
@@ -295,6 +299,7 @@ dependencies:
   - torchaudio=2.3.1=py312_cpu
   - torchvision=0.18.1=cpu_py312h2a46218_1
   - tornado=6.4.1=py312h9a8786e_0
+  - tqdm=4.67.1=pyhd8ed1ab_1
   - typing_extensions=4.12.2=pyha770c72_0
   - tzdata=2024a=h0c530f3_0
   - urllib3=2.2.2=pyhd8ed1ab_1
@@ -418,4 +423,4 @@ dependencies:
       - webencodings==0.5.1
       - websocket-client==1.8.0
       - widgetsnbextension==4.0.11
-prefix: /home/lolmo/anaconda3/envs/SlideLab4
+prefix: /home/lolmomarchal/miniconda3/envs/slide_lab
