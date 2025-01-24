@@ -79,6 +79,15 @@ With a size of 256 and an overlap of 2, tiles would overlap by 128 pixels.
 | `--gpu_processes`    | Number of GPU processes to use       | 1                 |
 | `--cpu_processes`    | Number of CPU processes to use       | `os.cpu_count()`  |
 
+### Example command 
+```sh
+python SlidePreprocessing.py -i /path/to/input/-o /path/to/output/ \
+  -s 512 -m 40 --remove_blurry_tiles --normalize_staining --encode \
+  -th 0.8 -bh 0.02 --device cuda --gpu_processes 2
+
+```
+
+
 
 
 
