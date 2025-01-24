@@ -38,7 +38,7 @@ class TileIterator:
                 self.slide = openslide.OpenSlide(slide)
             else:
                 self.slide = slide
-        except exception as e:
+        except Exception as e:
             print(f"Error opening Slide: {e}")
         # mask
         if mask is None:
