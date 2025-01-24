@@ -119,7 +119,7 @@ def tile_slide_normalize_image(coord, desired_size, adjusted_size, patient_id, s
         (desired_size, desired_size), Image.BILINEAR)
     tile_np = normalizeStaining(np.array(tile))
     if tile_np is None:
-        return None
+        return None, 0
     image_path = os.path.join(sample_path,
                               f"{patient_id}_{coord[0]}_{coord[1]}_size_{desired_size}_mag_{desired_mag}.png")
     cv2.imwrite(image_path, tile_np[:, :, ::-1])
@@ -132,7 +132,7 @@ def tile_slide_normalize_blurry_image(coord, desired_size, adjusted_size, patien
         (desired_size, desired_size), Image.BILINEAR)
     tile_np = normalizeStaining(np.array(tile))
     if tile_np is None:
-        return None
+        return None, 0
     blurry, var = LaplaceFilter(tile_np)
     if not blurry:
 

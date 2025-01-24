@@ -41,15 +41,14 @@ conda activate slidelab
 
 # Usage
 
-Arguments
-===
-## Input/Output (Required) 
+## Arguments
+### Input/Output (Required) 
 | Argument          | Description                           | Default |
 |--------------------|---------------------------------------|---------|
 | `-i`, `--input_path` | Path to the input WSI file            | None    |
 | `-o`, `--output_path` | Path to save the output tiles         | None    |
 
-## Tile Customization
+### Tile Customization
 | Argument               | Description                                         | Default |
 |-------------------------|-----------------------------------------------------|---------|
 | `-s`, `--desired_size` | Desired size of the tiles (in pixels)               | 256     |
@@ -59,26 +58,35 @@ Arguments
 **Overlap example**:
 With a size of 256 and an overlap of 2, tiles would overlap by 128 pixels. 
 
-## Preprocessing options 
+### Preprocessing options 
 | Argument                 | Description                                              | Default |
 |---------------------------|----------------------------------------------------------|---------|
 | `-rb`, `--remove_blurry_tiles` | Remove blurry tiles using a Laplacian filter           | False   |
 | `-n`, `--normalize_staining` | Normalize staining of the tiles                        | False   |
 | `-e`, `--encode`         | Encode tiles into an `.h5` file                          | False   |
-| `--extract_high_quality` | Extract only high-quality tiles                          | False   |
+| `--extract_high_quality` | Extract  features for high quality heatmaps                          | False   |
 
-## Thresholds 
+### Thresholds 
 | Argument               | Description                                          | Default |
 |-------------------------|------------------------------------------------------|---------|
 | `-th`, `--tissue_threshold` | Minimum tissue content to consider a tile valid   | 0.7     |
 | `-bh`, `--blur_threshold`   | Threshold for Laplacian filter variance (blur detection) | 0.015   |
 
-## Devices and Multiprocessing 
+### Devices and Multiprocessing 
 | Argument             | Description                          | Default           |
 |-----------------------|--------------------------------------|-------------------|
 | `--device`           | Specify device (e.g., GPU/CPU)       | None (will utilize gpu if available)             |
 | `--gpu_processes`    | Number of GPU processes to use       | 1                 |
 | `--cpu_processes`    | Number of CPU processes to use       | `os.cpu_count()`  |
+
+### Example command 
+```sh
+python SlidePreprocessing.py -i /path/to/input/-o /path/to/output/ \
+  -s 512 -m 40 --remove_blurry_tiles --normalize_staining --encode \
+  -th 0.8 -bh 0.02 --device cuda --gpu_processes 2
+
+```
+
 
 
 
