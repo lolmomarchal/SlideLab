@@ -11,8 +11,8 @@ def best_size(desired_mag, natural_mag, desired_size) -> int:
 
 def get_valid_coordinates(width, height, overlap, mask, size, scale, threshold):
     # example overlap of 2 and size of 256 = 128 stride
-    if overlap != 1:
-        stride = size / overlap
+    if overlap > 1:
+        stride = size // overlap
     else:
         stride = size
     x_coords = np.arange(0, width - size + stride, stride)

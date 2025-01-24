@@ -405,13 +405,19 @@ def preprocessing(path, patient_id, args):
             # also get an example for QC sample of a blurry and a non-blurry tile (valid coordinates)
             different_coords = list(set(coordin) - set(non_blurry_coords))
             if different_coords:
-                random_coord = different_coords[random.randint(0, len(different_coords))]
-                region = slide.read_region((random_coord[0], random_coord[1]), 0, (adjusted_size, adjusted_size)).convert(
-                    'RGB').resize(
-                    (desired_size, desired_size), Image.BILINEAR)
-                region.save(os.path.join(QC_path, "original_blurry.png"))
-                normalized_img = Image.fromarray(normalizeStaining(np.array(region)))
-                normalized_img.save(os.path.join(QC_path, "normalized_blurry.png"))
+                i = 0
+                while True or i < 20:
+                    random_coord = different_coords[random.randint(0, len(different_coords))]
+                    region = slide.read_region((random_coord[0], random_coord[1]), 0, (adjusted_size, adjusted_size)).convert(
+                        'RGB').resize(
+                        (desired_size, desired_size), Image.BILINEAR)
+                    normalized_blurry = normalizeStaining(np.array(region))
+                    if normalized_blurry is not None:
+                        region.save(os.path.join(QC_path, "original_blurry.png"))
+                        normalized_img = Image.fromarray(normalized_blurry)
+                        normalized_img.save(os.path.join(QC_path, "normalized_blurry.png"))
+                        break
+                    i += 1
     return summary, error
 
 
