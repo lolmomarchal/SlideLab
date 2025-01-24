@@ -239,7 +239,7 @@ def preprocessing(path, patient_id, args):
     # check 1: Opening Slide
     try:
         slide = openslide.OpenSlide(path)
-    except Exception as e:
+    except Exception as e: # noqa: F821
         slide = None
         error.append((patient_id, path, e, "Slide Opening"))
         summary = summary_()
