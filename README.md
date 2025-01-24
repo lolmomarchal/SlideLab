@@ -65,7 +65,7 @@ With a size of 256 and an overlap of 2, tiles would overlap by 128 pixels.
 | `-rb`, `--remove_blurry_tiles` | Remove blurry tiles using a Laplacian filter           | False   |
 | `-n`, `--normalize_staining` | Normalize staining of the tiles                        | False   |
 | `-e`, `--encode`         | Encode tiles into an `.h5` file                          | False   |
-| `--extract_high_quality` | Extract only high-quality tiles                          | False   |
+| `--extract_high_quality` | Extract  features for high quality heatmaps                          | False   |
 
 ## Thresholds 
 | Argument               | Description                                          | Default |
