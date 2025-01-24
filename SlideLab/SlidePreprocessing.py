@@ -250,7 +250,7 @@ def preprocessing(path, patient_id, args):
     natural_magnification = int(slide.properties.get("openslide.objective-power", 40))
     desired_magnification = args.desired_magnification
     if natural_magnification < desired_magnification:
-        error.append((patient_id, path, str(e), "Slide Opening"))
+        error.append((patient_id, path, "Desired magnification is higher than natural magnification"))
         summary = summary_()
         summary.append("Error")
         return summary, error
