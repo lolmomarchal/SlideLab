@@ -1,4 +1,3 @@
-from TissueMask import TissueMask
 import numpy as np
 import openslide
 from TileNormalization import normalizeStaining
