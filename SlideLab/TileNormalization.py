@@ -1,6 +1,7 @@
 import numpy as np
 import warnings
 import torch
+warnings.filterwarnings("ignore", category=UserWarning)
 
 # if gpu not available, use numpy vers
 def normalizeStaining(tile, Io=240, alpha=1, beta=0.15):
