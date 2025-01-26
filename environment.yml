@@ -3,7 +3,6 @@ channels:
   - anaconda
   - nvidia
   - pytorch
-  - defaults
   - conda-forge
   - https://repo.anaconda.com/pkgs/main
   - https://repo.anaconda.com/pkgs/r
@@ -24,16 +23,15 @@ dependencies:
   - bzip2=1.0.8=hd590300_5
   - c-ares=1.28.1=hd590300_0
   - c-blosc2=2.15.0=h6d6b9e4_1
-  - ca-certificates=2024.12.31=h06a4308_0
+  - ca-certificates=2024.12.14=hbcca054_0
   - cached-property=1.5.2=hd8ed1ab_1
   - cached_property=1.5.2=pyha770c72_1
   - cairo=1.18.0=hbb29018_2
-  - certifi=2024.12.14=py312h06a4308_0
+  - certifi=2024.12.14=pyhd8ed1ab_0
   - cffi=1.16.0=py312hf06ca03_0
   - cfitsio=4.4.1=hf8ad068_0
   - charls=2.4.2=h59595ed_0
   - charset-normalizer=3.3.2=pyhd8ed1ab_0
-  - colorama=0.4.6=pyhd8ed1ab_1
   - contourpy=1.2.1=py312h8572e83_0
   - cpuonly=2.0=0
   - cuda-cudart=11.8.89=0
@@ -63,7 +61,7 @@ dependencies:
   - freetype=2.12.1=h267a509_2
   - fribidi=1.0.10=h36c2ea0_0
   - fsspec=2024.6.1=pyhff2d567_0
-  - gdk-pixbuf=2.42.12=hb9ae30d_0 
+  - gdk-pixbuf=2.42.12=hb9ae30d_0
   - gettext=0.22.5=h59595ed_2
   - gettext-tools=0.22.5=h59595ed_2
   - ghostscript=10.03.1=h59595ed_0
@@ -92,7 +90,7 @@ dependencies:
   - imageio=2.34.2=pyh12aca89_0
   - imagemagick=7.1.1_34=pl5321h688295e_1
   - imath=3.1.11=hfc55251_0
-  - importlib-metadata=9.0.0=pyha770c72_0
+  - importlib-metadata=8.0.0=pyha770c72_0
   - jasper=4.2.4=h536e39c_0
   - jbig=2.1=h7f98852_2003
   - jinja2=3.1.4=pyhd8ed1ab_0
@@ -131,7 +129,7 @@ dependencies:
   - libde265=1.0.15=h00ab1b0_0
   - libdeflate=1.20=hd590300_0
   - libdicom=1.0.5=hd590300_1
-  - libdrm=2.4.122=h4ab18f5_0  
+  - libdrm=2.4.122=h4ab18f5_0
   - libedit=3.1.20191231=he28a2e2_2
   - libev=4.33=hd590300_2
   - libevent=2.1.12=hf998b51_1
@@ -160,7 +158,6 @@ dependencies:
   - libjxl=0.10.2=hcae5a98_0
   - liblapack=3.9.0=22_linux64_openblas
   - liblapacke=3.9.0=22_linux64_openblas
-  - libllvm14=14.0.6=hcd5def8_4
   - libllvm15=15.0.7=hb3ce162_4
   - libllvm18=18.1.8=hc9dba70_0
   - libmatio=1.5.27=hd8a4993_0
@@ -213,7 +210,6 @@ dependencies:
   - libxml2=2.12.7=hc051c1a_1
   - libzlib=1.3.1=h4ab18f5_1
   - libzopfli=1.0.3=h9c3ff4c_0
-  - llvmlite=0.43.0=py312h9c5d478_0
   - lz4-c=1.9.4=hcb278e6_0
   - markupsafe=2.1.5=py312h98912ed_0
   - matplotlib=3.8.4=py312h7900ff3_2
@@ -231,7 +227,6 @@ dependencies:
   - nomkl=1.0=h5ca1d4c_0
   - nspr=4.35=h27087fc_0
   - nss=3.102=h593d115_0
-  - numba=0.60.0=py312h83e6fd3_0
   - numexpr=2.10.0=py312hf412c99_100
   - numpy=1.26.0=py312h2809609_0
   - numpy-base=1.26.0=py312he1a6c75_0
@@ -243,11 +238,12 @@ dependencies:
   - openjpeg=2.5.2=h488ebb8_0
   - openslide=4.0.0=h58ba908_1
   - openslide-python=1.3.1=py312h585b528_2
-  - openssl=3.3.1=h4ab18f5_1
+  - openssl=3.3.1=hb9d3cd8_3
   - p11-kit=0.24.1=hc5aa10d_0
   - packaging=24.1=pyhd8ed1ab_0
   - pandas=2.1.1=py312h526ad5a_0
   - pango=1.54.0=h84a9a3c_0
+  - patsy=1.0.1=pyhd8ed1ab_1
   - pcre=8.45=h9c3ff4c_0
   - pcre2=10.43=hcad00b1_0
   - perl=5.32.1=7_hd590300_perl5
@@ -272,7 +268,7 @@ dependencies:
   - python-dateutil=2.9.0=pyhd8ed1ab_0
   - python-tzdata=2024.1=pyhd8ed1ab_0
   - python_abi=3.12=4_cp312
-  - pytorch-cuda=11.8=h7e8668a_6
+  - pytorch-cuda=11.8=h7e8668a_5
   - pytorch-mutex=1.0=cpu
   - pytz=2024.1=pyhd8ed1ab_0
   - pyvips=2.2.3=py312hd5b40ef_0
@@ -284,12 +280,14 @@ dependencies:
   - requests=2.32.3=pyhd8ed1ab_0
   - scikit-image=0.24.0=py312h1d6d2e6_1
   - scipy=1.14.0=py312hc2bc53b_1
-  - seaborn=0.13.2=py312h06a4308_0
+  - seaborn=0.13.2=hd8ed1ab_3
+  - seaborn-base=0.13.2=pyhd8ed1ab_3
   - setuptools=68.0.0=py312h06a4308_0
   - sip=6.7.12=py312h30efb56_0
   - six=1.16.0=pyh6c4a22f_0
   - sleef=3.5.1=h9b69904_2
   - snappy=1.2.1=ha2e4443_0
+  - statsmodels=0.14.2=py312h085067d_0
   - svt-av1=2.1.0=hac33072_0
   - tbb=2021.12.0=h434a139_2
   - tifffile=2024.7.2=pyhd8ed1ab_0
@@ -297,17 +295,16 @@ dependencies:
   - toml=0.10.2=pyhd8ed1ab_0
   - tomli=2.0.1=pyhd8ed1ab_0
   - tornado=6.4.1=py312h9a8786e_0
-  - tqdm=4.67.1=pyhd8ed1ab_1
   - typing_extensions=4.12.2=pyha770c72_0
   - tzdata=2024a=h0c530f3_0
   - urllib3=2.2.2=pyhd8ed1ab_1
   - wayland=1.23.0=h5291e77_0
   - wayland-protocols=1.36=hd8ed1ab_0
-  - wheel=0.43.0=pyhd8ed1ab_1 
+  - wheel=0.43.0=pyhd8ed1ab_1
   - x264=1!164.3095=h166bdaf_2
   - x265=3.5=h924138e_3
   - xcb-util=0.4.1=hb711507_2
-  - xcb-util-cursor=0.1.4=h4ab18f5_4
+  - xcb-util-cursor=0.1.4=h4ab18f5_2
   - xcb-util-image=0.4.0=hb711507_2
   - xcb-util-keysyms=0.4.1=hb711507_0
   - xcb-util-renderutil=0.3.10=hb711507_0
@@ -338,23 +335,31 @@ dependencies:
   - zstandard=0.22.0=py312h5b18bf6_1
   - zstd=1.5.6=ha6fb4c9_0
   - pip:
+      - absl-py==2.1.0
       - anyio==4.4.0
       - argon2-cffi==23.1.0
       - argon2-cffi-bindings==21.2.0
       - arrow==1.3.0
       - asttokens==2.4.1
+      - astunparse==1.6.3
       - async-lru==2.0.4
       - attrs==23.2.0
       - babel==2.15.0
       - beautifulsoup4==4.12.3
       - bleach==6.1.0
+      - cloudpickle==3.1.0
       - comm==0.2.2
       - debugpy==1.8.2
       - decorator==5.1.1
       - defusedxml==0.7.1
+      - dm-tree==0.1.8
       - executing==2.0.1
       - fastjsonschema==2.20.0
+      - flatbuffers==24.12.23
       - fqdn==1.5.1
+      - gast==0.6.0
+      - google-pasta==0.2.0
+      - grpcio==1.69.0
       - h11==0.14.0
       - httpcore==1.0.5
       - httpx==0.27.0
@@ -363,6 +368,7 @@ dependencies:
       - ipywidgets==8.1.3
       - isoduration==20.11.0
       - jedi==0.19.1
+      - joblib==1.4.2
       - json5==0.9.25
       - jsonpointer==3.0.0
       - jsonschema==4.23.0
@@ -379,14 +385,24 @@ dependencies:
       - jupyterlab-pygments==0.3.0
       - jupyterlab-server==2.27.2
       - jupyterlab-widgets==3.0.11
+      - keras==3.8.0
+      - libclang==18.1.1
+      - line-profiler==4.2.0
+      - llvmlite==0.43.0
+      - markdown==3.7
+      - markdown-it-py==3.0.0
       - matplotlib-inline==0.1.7
+      - mdurl==0.1.2
       - mistune==3.0.2
+      - ml-dtypes==0.4.1
+      - namex==0.0.8
       - nbclient==0.10.0
       - nbconvert==7.16.4
       - nbformat==5.10.4
       - nest-asyncio==1.6.0
       - notebook==7.2.1
       - notebook-shim==0.2.4
+      - numba==0.60.0
       - nvidia-cublas-cu12==12.4.5.8
       - nvidia-cuda-cupti-cu12==12.4.127
       - nvidia-cuda-nvrtc-cu12==12.4.127
@@ -399,6 +415,8 @@ dependencies:
       - nvidia-nccl-cu12==2.21.5
       - nvidia-nvjitlink-cu12==12.4.127
       - nvidia-nvtx-cu12==12.4.127
+      - opt-einsum==3.4.0
+      - optree==0.13.1
       - overrides==7.7.0
       - pandocfilters==1.5.1
       - parso==0.8.4
@@ -406,6 +424,7 @@ dependencies:
       - platformdirs==4.2.2
       - prometheus-client==0.20.0
       - prompt-toolkit==3.0.47
+      - protobuf==5.29.3
       - psutil==6.0.0
       - ptyprocess==0.7.0
       - pure-eval==0.2.2
@@ -418,17 +437,25 @@ dependencies:
       - referencing==0.35.1
       - rfc3339-validator==0.1.4
       - rfc3986-validator==0.1.1
+      - rich==13.9.4
       - rpds-py==0.19.0
       - send2trash==1.8.3
       - sniffio==1.3.1
       - soupsieve==2.5
       - stack-data==0.6.3
       - sympy==1.13.1
+      - tensorboard==2.18.0
+      - tensorboard-data-server==0.7.2
+      - tensorflow==2.18.0
+      - tensorflow-probability==0.25.0
+      - termcolor==2.5.0
       - terminado==0.18.1
+      - tf-keras==2.18.0
       - tinycss2==1.3.0
       - torch==2.5.1
       - torchaudio==2.5.1
       - torchvision==0.20.1
+      - tqdm==4.67.1
       - traitlets==5.14.3
       - triton==3.1.0
       - types-python-dateutil==2.9.0.20240316
@@ -437,5 +464,7 @@ dependencies:
       - webcolors==24.6.0
       - webencodings==0.5.1
       - websocket-client==1.8.0
+      - werkzeug==3.1.3
       - widgetsnbextension==4.0.11
-prefix: /tscc/nfs/home/aolmomarchal/miniconda3/envs/slidelab
+      - wrapt==1.17.0
+prefix: /home/lolmomarchal/miniconda3/envs/slidelab
