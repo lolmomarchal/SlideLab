@@ -25,5 +25,6 @@ def plot_distribution(values, save_path, var_threshold = 0.015):
     plt.ylabel("Count")
     plt.legend()
     plt.savefig(save_path)
+    plt.close()
 
 
