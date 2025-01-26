@@ -406,8 +406,8 @@ def preprocessing(path, patient_id, args):
             different_coords = list(set(coordin) - set(non_blurry_coords))
             if different_coords:
                 i = 0
-                while True or i < 20:
-                    random_coord = different_coords[random.randint(0, len(different_coords))]
+                while True or i < 5:
+                    random_coord = different_coords[random.randint(0, len(different_coords)-1)]
                     region = slide.read_region((random_coord[0], random_coord[1]), 0, (adjusted_size, adjusted_size)).convert(
                         'RGB').resize(
                         (desired_size, desired_size), Image.BILINEAR)
