@@ -48,9 +48,9 @@ def encode_tiles(patient_id, tile_path, result_path, device='cpu'):
             hdf.create_dataset('scale', data=read["scale"])
             hdf.create_dataset('mag', data=read["desired_magnification"])
             hdf.create_dataset('size', data=read["desired_size"])
-            
-        
-            feature_dim = 0 
+
+           
+            feature_dim = 0  
             feature_dataset = hdf.create_dataset('features', shape=(0, feature_dim), maxshape=(None, feature_dim), dtype='f4')
 
             for path in tqdm.tqdm(read["tile_path"]):
@@ -61,8 +61,10 @@ def encode_tiles(patient_id, tile_path, result_path, device='cpu'):
                     
                     if feature_dim == 0:
                         feature_dim = encoded_feature.shape[0]
+                        feature_dataset.resize((1, feature_dim)) 
+                    else:
                         feature_dataset.resize((len(feature_dataset) + 1, feature_dim))
-                    feature_dataset.resize((len(feature_dataset) + 1, feature_dim))
+                    
                     feature_dataset[-1] = encoded_feature
 
                     torch.cuda.empty_cache()
@@ -72,3 +74,4 @@ def encode_tiles(patient_id, tile_path, result_path, device='cpu'):
 
     except Exception as e:
         print(f"Exception: {e}")
+
