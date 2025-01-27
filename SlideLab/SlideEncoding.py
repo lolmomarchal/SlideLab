@@ -41,6 +41,7 @@ def encode_tiles(patient_id, tile_path, result_path, device='cpu'):
         read = pd.read_csv(tile_path).dropna()
         read["tile_path"] = np.array(read["tile_path"])
 
+        # Save to HDF5 in a streaming fashion to avoid holding all data in memory
         with h5py.File(os.path.join(result_path, f"{patient_id}.h5"), "w") as hdf:
             hdf.create_dataset('tile_paths', data=read["tile_path"], dtype=h5py.string_dtype(encoding='utf-8'))
             hdf.create_dataset('x', data=read["x"])
@@ -49,22 +50,40 @@ def encode_tiles(patient_id, tile_path, result_path, device='cpu'):
             hdf.create_dataset('mag', data=read["desired_magnification"])
             hdf.create_dataset('size', data=read["desired_size"])
 
-           
-            feature_dim = 0  
-            feature_dataset = hdf.create_dataset('features', shape=(0, feature_dim), maxshape=(None, feature_dim), dtype='f4')
-
+            # Initialize the first feature to set the feature dimension
+            feature_dim = 0
+            first_encoded_feature = None
             for path in tqdm.tqdm(read["tile_path"]):
                 tile = preprocess_image(path, device)
                 if tile is not None:
                     with torch.no_grad():
                         encoded_feature = encoder_model(tile).cpu().squeeze()
-                    
-                    if feature_dim == 0:
+
+                    if first_encoded_feature is None:
+                        first_encoded_feature = encoded_feature
                         feature_dim = encoded_feature.shape[0]
-                        feature_dataset.resize((1, feature_dim)) 
-                    else:
-                        feature_dataset.resize((len(feature_dataset) + 1, feature_dim))
-                    
+
+                    break  # Exit after processing the first tile to get feature_dim
+
+            if first_encoded_feature is None:
+                raise Exception("No valid tiles to encode")
+
+            # Now create the features dataset with the correct feature_dim
+            feature_dataset = hdf.create_dataset(
+                'features',
+                shape=(0, feature_dim),
+                maxshape=(None, feature_dim),
+                dtype='f4'
+            )
+
+            # Process all tiles and append their encoded features to the HDF5 file
+            for path in tqdm.tqdm(read["tile_path"]):
+                tile = preprocess_image(path, device)
+                if tile is not None:
+                    with torch.no_grad():
+                        encoded_feature = encoder_model(tile).cpu().squeeze()
+
+                    feature_dataset.resize((len(feature_dataset) + 1, feature_dim))
                     feature_dataset[-1] = encoded_feature
 
                     torch.cuda.empty_cache()
@@ -74,4 +93,3 @@ def encode_tiles(patient_id, tile_path, result_path, device='cpu'):
 
     except Exception as e:
         print(f"Exception: {e}")
-
