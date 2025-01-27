@@ -40,21 +40,7 @@ def encode_tiles(patient_id, tile_path, result_path, device='cpu'):
     try:
         read = pd.read_csv(tile_path).dropna()
         read["tile_path"] = np.array(read["tile_path"])
-        total_data = []
 
-        for path in tqdm.tqdm(read["tile_path"]):
-            tile = preprocess_image(path, device)
-            if tile is not None:
-                with torch.no_grad():
-                    encoded_feature = encoder_model(tile).cpu().squeeze()
-                total_data.append(encoded_feature)
-                torch.cuda.empty_cache()
-
-
-        finish_encoding = time.time()
-        print(f"Encoding time: {finish_encoding - start}")
-
-        # Save to HDF5
         with h5py.File(os.path.join(result_path, f"{patient_id}.h5"), "w") as hdf:
             hdf.create_dataset('tile_paths', data=read["tile_path"], dtype=h5py.string_dtype(encoding='utf-8'))
             hdf.create_dataset('x', data=read["x"])
@@ -62,6 +48,27 @@ def encode_tiles(patient_id, tile_path, result_path, device='cpu'):
             hdf.create_dataset('scale', data=read["scale"])
             hdf.create_dataset('mag', data=read["desired_magnification"])
             hdf.create_dataset('size', data=read["desired_size"])
-            hdf.create_dataset('features', data=torch.stack(total_data))
+            
+        
+            feature_dim = 0 
+            feature_dataset = hdf.create_dataset('features', shape=(0, feature_dim), maxshape=(None, feature_dim), dtype='f4')
+
+            for path in tqdm.tqdm(read["tile_path"]):
+                tile = preprocess_image(path, device)
+                if tile is not None:
+                    with torch.no_grad():
+                        encoded_feature = encoder_model(tile).cpu().squeeze()
+                    
+                    if feature_dim == 0:
+                        feature_dim = encoded_feature.shape[0]
+                        feature_dataset.resize((len(feature_dataset) + 1, feature_dim))
+                    feature_dataset.resize((len(feature_dataset) + 1, feature_dim))
+                    feature_dataset[-1] = encoded_feature
+
+                    torch.cuda.empty_cache()
+
+        finish_encoding = time.time()
+        print(f"Encoding time: {finish_encoding - start}")
+
     except Exception as e:
         print(f"Exception: {e}")
