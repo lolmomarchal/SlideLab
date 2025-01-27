@@ -51,6 +51,7 @@ def encode_tiles(patient_id, tile_path, result_path, device='cpu'):
                 total_data.append(encoded_feature)
 
         finish_encoding = time.time()
+        torch.cuda.empty_cache()
         print(f"Encoding time: {finish_encoding - start}")
 
         # Save to HDF5
