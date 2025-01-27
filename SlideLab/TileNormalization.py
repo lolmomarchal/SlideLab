@@ -112,7 +112,7 @@ def normalizeStaining_torch(tile, Io=240, alpha=1, beta=0.15, device=None):
         Inorm = torch.clamp(Inorm, 0, 255)
         Inorm = Inorm.T.reshape(h, w, 3)
 
-        return Inorm.byte().to('cpu').numpy()
+        return Inorm.byte().to('cpu')
 
     except (RuntimeError, ValueError, FloatingPointError):
         return None
