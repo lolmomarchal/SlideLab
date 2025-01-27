@@ -35,6 +35,7 @@ def preprocess_image(path_to_tile, device='cpu'):
 
 def encode_tiles(patient_id, tile_path, result_path, device='cpu'):
     print(patient_id)
+    print(device)
     start = time.time()
     encoder_model = encoder(encoder_type=0, device=device)
     try:
