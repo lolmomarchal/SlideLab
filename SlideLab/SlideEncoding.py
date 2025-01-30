@@ -55,13 +55,15 @@ def monitor_system():
 def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=256, max_queue=4, encoder_model="resnet50", high_qual=False):
     print(f"Encoding: {patient_id} on {device}")
     print(torch.cuda.is_available())
+    monitor_thread = threading.Thread(target=monitor_system, daemon=True)
+    monitor_thread.start()
     
     encoder_ = encoder(encoder_type=encoder_model, device=device)
     tile_dataset = TilePreprocessing(tile_path, device=device)
 
     # batch_queue = queue.Queue(maxsize=max_queue) 
     all_features, all_x, all_y, all_tile_paths = [], [], [], []
-    stop_signal = object()
+    # stop_signal = object()
     batch_counter = 0
     for x, y, images, tile_paths in tqdm.tqdm(DataLoader(tile_dataset, batch_size=batch_size, shuffle=False), desc="Encoding Tiles"):
         with torch.no_grad():
@@ -79,6 +81,7 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=25
     del encoder_
     gc.collect()
     torch.cuda.empty_cache()
+    monitor_thread.join()
 
             
 
