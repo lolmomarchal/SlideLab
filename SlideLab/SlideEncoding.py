@@ -61,7 +61,7 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=32
                 all_tile_paths.extend(tile_paths)
                 batch_queue.task_done()
                 del features
-                torch.cuda.empty_cache()
+                # torch.cuda.empty_cache()
                 
 
     worker_thread = threading.Thread(target=encode_worker)
