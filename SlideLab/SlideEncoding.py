@@ -34,7 +34,7 @@ class TilePreprocessing(Dataset):
     def __getitem__(self, idx):
         x, y, tile_path = self.data[idx]
         image = read_image(tile_path).float() / 255.0  
-        image = image.to(self.device, non_blocking=True)  
+        # image = image.to(self.device, non_blocking=True)  
         return x, y, image, tile_path
 
 def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=16, max_queue = 10, encoder_model="resnet50", high_qual = False ):
@@ -54,14 +54,14 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=16
                 if batch is stop_signal:
                     break
                 x, y, images, tile_paths = batch
-                features = encoder_(images)
+                features = encoder_(images.to(device))
                 all_features.append(features.squeeze(-1).squeeze(-1).cpu())
                 all_x.extend(x)
                 all_y.extend(y)
                 all_tile_paths.extend(tile_paths)
                 batch_queue.task_done()
                 del features
-                # torch.cuda.empty_cache()
+                #torch.cuda.empty_cache()
                 
 
     worker_thread = threading.Thread(target=encode_worker)
