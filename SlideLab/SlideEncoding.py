@@ -55,23 +55,20 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=16
         images = images.to(device)
 
         start_time = time.time()
-        features = encoder_(images)  # Run on GPU
+        features = encoder_(images) 
         batch_time = time.time() - start_time
 
         print(f"Processed batch in {batch_time:.4f} sec | GPU Memory: {torch.cuda.memory_allocated() / (1024 ** 3):.2f} GB")
 
-        all_features.append(features.squeeze(-1).squeeze(-1).cpu())
+        all_features.append(features.squeeze(-1).squeeze(-1).detach().cpu())
         all_x.extend(x)
         all_y.extend(y)
         all_tile_paths.extend(tile_paths)
 
-        batch_counter += 1
-        if batch_counter % 100 == 0:
-            print(f"Processed {batch_counter} batches. GPU Memory: {torch.cuda.memory_allocated() / (1024 ** 3):.2f} GB")
-
         del features, x, y, images, tile_paths
         torch.cuda.empty_cache()
         gc.collect()
+        
     df = pd.read_csv(tile_path)
     all_features = torch.cat(all_features, dim=0).numpy().astype(np.float32)
     all_x = np.array(all_x, dtype=np.float32)
