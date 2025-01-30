@@ -74,5 +74,3 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=16
         hdf.create_dataset("features", data=all_features)
         hdf.create_dataset("mag", data=mag)
         hdf.create_dataset("size", data=size)
-    return batch_queue
-
