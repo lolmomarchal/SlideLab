@@ -52,61 +52,77 @@ class TilePreprocessing(Dataset):
 #         print(f"CPU: {cpu_usage:.2f}% | Memory: {mem_usage:.2f} GB | GPU Memory: {gpu_mem:.2f} GB")
 #         time.sleep(5)
 
-def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=256, max_queue=4, encoder_model="resnet50", high_qual=False):
+def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=16, max_queue=4, encoder_model="resnet50", high_qual=False):
     print(f"Encoding: {patient_id} on {device}")
     
     encoder_ = encoder(encoder_type=encoder_model, device=device)
     tile_dataset = TilePreprocessing(tile_path, device=device)
 
-    batch_queue = queue.Queue(maxsize=max_queue) 
+    # batch_queue = queue.Queue(maxsize=max_queue) 
     all_features, all_x, all_y, all_tile_paths = [], [], [], []
     stop_signal = object()
     batch_counter = 0
+    with torch.no_grad():
+        for x, y, images, tile_paths in tqdm.tqdm(DataLoader(tile_dataset, batch_size=batch_size, shuffle=False), desc="Encoding Tiles"):
+            all_x.extend(x)
+            all_y.extend(y)
+            all_tile_paths.extend(tile_paths)
+            images = images.to(device)
+            features = encoder_(images)
+            all_features.append(features.squeeze(-1).squeeze(-1).cpu())
+            del features, x, y, images, tile_paths
+            batch_counter+=1
+            if batch_counter%5 == 0:
+                gc.collect()
+                torch.cuda.empty_cache()
 
+            
+
+            
     # monitor_thread = threading.Thread(target=monitor_system, daemon=True)
     # monitor_thread.start()
 
-    def encode_worker():
-        nonlocal batch_counter
-        with torch.no_grad():
-            while True:
-                batch = batch_queue.get()
-                if batch is stop_signal:
-                    break
-                x, y, images, tile_paths = batch
-                images = images.to(device)
+    # def encode_worker():
+    #     nonlocal batch_counter
+    #     with torch.no_grad():
+    #         while True:
+    #             batch = batch_queue.get()
+    #             if batch is stop_signal:
+    #                 break
+    #             x, y, images, tile_paths = batch
+    #             images = images.to(device)
                 
-                start_time = time.time()
-                # print(f"Images are on device: {images.device}")
-                # print(f"encoder is on device: {encoder_.device}")
-                features = encoder_(images)
+    #             start_time = time.time()
+    #             # print(f"Images are on device: {images.device}")
+    #             # print(f"encoder is on device: {encoder_.device}")
+    #             features = encoder_(images)
                 
-                end_time = time.time()
+    #             end_time = time.time()
                 
-                batch_time = end_time - start_time
-                # print(f"Batch {batch_counter}: Processing Time = {batch_time:.4f} sec")
+    #             batch_time = end_time - start_time
+    #             # print(f"Batch {batch_counter}: Processing Time = {batch_time:.4f} sec")
                 
-                all_features.append(features.squeeze(-1).squeeze(-1).cpu())
-                all_x.extend(x)
-                all_y.extend(y)
-                all_tile_paths.extend(tile_paths)
-                batch_queue.task_done()
-                del features, x, y, images, tile_paths
+    #             all_features.append(features.squeeze(-1).squeeze(-1).cpu())
+    #             all_x.extend(x)
+    #             all_y.extend(y)
+    #             all_tile_paths.extend(tile_paths)
+    #             batch_queue.task_done()
+    #             del features, x, y, images, tile_paths
                 
-                batch_counter += 1
-                if batch_counter % 50 == 0:
-                    # print("Clearing CUDA cache and collecting garbage")
-                    torch.cuda.empty_cache()
-                    gc.collect()
+    #             batch_counter += 1
+    #             if batch_counter % 50 == 0:
+    #                 # print("Clearing CUDA cache and collecting garbage")
+    #                 torch.cuda.empty_cache()
+    #                 gc.collect()
 
-    worker_thread = threading.Thread(target=encode_worker)
-    worker_thread.start()
+    # worker_thread = threading.Thread(target=encode_worker)
+    # worker_thread.start()
     
-    for x, y, images, tile_paths in tqdm.tqdm(DataLoader(tile_dataset, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=(device == "cpu")), desc="Encoding Tiles"):
-        batch_queue.put((x, y, images, tile_paths))
+    # for x, y, images, tile_paths in tqdm.tqdm(DataLoader(tile_dataset, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=(device == "cpu")), desc="Encoding Tiles"):
+    #     batch_queue.put((x, y, images, tile_paths))
 
-    batch_queue.put(stop_signal)  
-    worker_thread.join() 
+    # batch_queue.put(stop_signal)  
+    # worker_thread.join() 
     
     df = pd.read_csv(tile_path)
     all_features = torch.cat(all_features, dim=0).numpy().astype(np.float32)
