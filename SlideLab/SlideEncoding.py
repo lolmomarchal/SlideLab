@@ -41,16 +41,16 @@ class TilePreprocessing(Dataset):
         image = read_image(tile_path).float() / 255.0  
         return x, y, image, tile_path
 
-def monitor_system():
-    """Monitors and logs CPU, memory, and GPU usage."""
-    pid = os.getpid()
-    process = psutil.Process(pid)
-    while True:
-        cpu_usage = process.cpu_percent()
-        mem_usage = process.memory_info().rss / (1024 ** 3)  
-        gpu_mem = torch.cuda.memory_allocated() / (1024 ** 3) if torch.cuda.is_available() else 0
-        print(f"CPU: {cpu_usage:.2f}% | Memory: {mem_usage:.2f} GB | GPU Memory: {gpu_mem:.2f} GB")
-        time.sleep(5)
+# def monitor_system():
+#     """Monitors and logs CPU, memory, and GPU usage."""
+#     pid = os.getpid()
+#     process = psutil.Process(pid)
+#     while True:
+#         cpu_usage = process.cpu_percent()
+#         mem_usage = process.memory_info().rss / (1024 ** 3)  
+#         gpu_mem = torch.cuda.memory_allocated() / (1024 ** 3) if torch.cuda.is_available() else 0
+#         print(f"CPU: {cpu_usage:.2f}% | Memory: {mem_usage:.2f} GB | GPU Memory: {gpu_mem:.2f} GB")
+#         time.sleep(5)
 
 def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=256, max_queue=4, encoder_model="resnet50", high_qual=False):
     print(f"Encoding: {patient_id} on {device}")
@@ -63,8 +63,8 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=25
     stop_signal = object()
     batch_counter = 0
 
-    monitor_thread = threading.Thread(target=monitor_system, daemon=True)
-    monitor_thread.start()
+    # monitor_thread = threading.Thread(target=monitor_system, daemon=True)
+    # monitor_thread.start()
 
     def encode_worker():
         nonlocal batch_counter
@@ -77,8 +77,8 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=25
                 images = images.to(device)
                 
                 start_time = time.time()
-                print(f"Images are on device: {images.device}")
-                print(f"encoder is on device: {encoder_.device}")
+                # print(f"Images are on device: {images.device}")
+                # print(f"encoder is on device: {encoder_.device}")
                 features = encoder_(images)
                 
                 end_time = time.time()
