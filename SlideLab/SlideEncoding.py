@@ -44,7 +44,7 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=16
     
 
     batch_queue = queue.Queue(maxsize=max_queue) 
-    all_features, all_x, all_y, all_tile_paths, high_qual_all= [], [], [], []
+    all_features, all_x, all_y, all_tile_paths, high_qual_all= [], [], [], [], []
     stop_signal = object() 
 
     def encode_worker():
