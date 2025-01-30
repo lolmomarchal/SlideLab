@@ -13,7 +13,8 @@ from torchvision.io import read_image
 import gc
 import threading
 
-torch.backends.cudnn.benchmark = True  # Optimize for varying input sizes
+torch.backends.cudnn.benchmark = True
+
 
 def encoder(encoder_type="resnet50", device="cpu"):
     if encoder_type == "resnet50":
@@ -46,14 +47,9 @@ class TilePreprocessing(Dataset):
 #         time.sleep(5)
 
 def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=16, encoder_model="resnet50"):
-    print(f"Encoding: {patient_id} on {device}")
     
     if device == "cuda":
-        torch.cuda.empty_cache()  # Ensure clean GPU memory
-
-    # monitor_thread = threading.Thread(target=monitor_system, daemon=True)
-    # monitor_thread.start()
-    
+        torch.cuda.empty_cache()  
     encoder_ = encoder(encoder_type=encoder_model, device=device)
     tile_dataset = TilePreprocessing(tile_path)
     data_loader = DataLoader(tile_dataset, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=(device == "cuda"))
@@ -61,7 +57,7 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=16
     all_features, all_x, all_y, all_tile_paths = [], [], [], []
     
     with torch.no_grad():
-        for x, y, images, tile_paths in tqdm.tqdm(data_loader, desc="Encoding Tiles"):
+        for x, y, images, tile_paths in tqdm.tqdm(data_loader, desc=f"Encoding {patient_id}"):
             all_x.extend(x.numpy())
             all_y.extend(y.numpy())
             all_tile_paths.extend(tile_paths)
