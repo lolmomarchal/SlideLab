@@ -12,8 +12,8 @@ from torchvision.io import read_image
 import torch.multiprocessing as mp
 import gc
 
-mp.set_start_method("spawn", force=True)
-
+import os
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 def encoder(encoder_type="resnet50", device="cpu"):
     """Initialize encoder model and move to the specified device (CPU or GPU)."""
     if encoder_type == "resnet50":
