@@ -41,7 +41,7 @@ class TilePreprocessing(Dataset):
         image = read_image(tile_path).float() / 255.0  
         return x, y, image, tile_path
 
-def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=32, encoder_model="resnet50", high_qual=False):
+def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=16, encoder_model="resnet50", high_qual=False):
     """Function to encode tiles and save the results in an HDF5 file."""
     print(f"Encoding: {patient_id} on {device}")
     encoder_ = encoder(encoder_type=encoder_model, device=device)
@@ -52,7 +52,7 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=32
 
 
     for x, y, images, tile_paths in tqdm.tqdm(DataLoader(tile_dataset, batch_size=batch_size, shuffle=False), desc="Encoding Tiles"):
-        images = images.to(device, non_blocking=True)
+        images = images.to(device)
 
         start_time = time.time()
         features = encoder_(images)  # Run on GPU
