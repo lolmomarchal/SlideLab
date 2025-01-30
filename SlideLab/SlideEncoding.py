@@ -4,6 +4,8 @@ import torch
 import numpy as np
 import pandas as pd
 import h5py
+import psutil
+import time
 from torchvision import models
 from torchvision.models.resnet import ResNet50_Weights
 from torch.utils.data import Dataset, DataLoader
@@ -39,8 +41,20 @@ class TilePreprocessing(Dataset):
         image = read_image(tile_path).float() / 255.0  
         return x, y, image, tile_path
 
+def monitor_system():
+    """Monitors and logs CPU, memory, and GPU usage."""
+    pid = os.getpid()
+    process = psutil.Process(pid)
+    while True:
+        cpu_usage = process.cpu_percent()
+        mem_usage = process.memory_info().rss / (1024 ** 3)  # Convert to GB
+        gpu_mem = torch.cuda.memory_allocated() / (1024 ** 3) if torch.cuda.is_available() else 0
+        print(f"CPU: {cpu_usage:.2f}% | Memory: {mem_usage:.2f} GB | GPU Memory: {gpu_mem:.2f} GB")
+        time.sleep(5)
+
 def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=8, max_queue=4, encoder_model="resnet50", high_qual=False):
     print(f"Encoding: {patient_id} on {device}")
+    
     encoder_ = encoder(encoder_type=encoder_model, device=device)
     tile_dataset = TilePreprocessing(tile_path, device=device)
 
@@ -48,6 +62,10 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=8,
     all_features, all_x, all_y, all_tile_paths = [], [], [], []
     stop_signal = object()
     batch_counter = 0
+
+    # Start system monitoring in a separate thread
+    monitor_thread = threading.Thread(target=monitor_system, daemon=True)
+    monitor_thread.start()
 
     def encode_worker():
         nonlocal batch_counter
@@ -57,7 +75,14 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=8,
                 if batch is stop_signal:
                     break
                 x, y, images, tile_paths = batch
+                
+                start_time = time.time()
                 features = encoder_(images.to(device))
+                end_time = time.time()
+                
+                batch_time = end_time - start_time
+                print(f"Batch {batch_counter}: Processing Time = {batch_time:.4f} sec")
+                
                 all_features.append(features.squeeze(-1).squeeze(-1).cpu())
                 all_x.extend(x)
                 all_y.extend(y)
@@ -67,6 +92,7 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=8,
                 
                 batch_counter += 1
                 if batch_counter % 100 == 0:
+                    print("Clearing CUDA cache and collecting garbage")
                     torch.cuda.empty_cache()
                     gc.collect()
 
