@@ -10,6 +10,7 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision.io import read_image
 import torch.multiprocessing as mp
 import queue
+import gc
 import threading
 import multiprocessing as mp
 
