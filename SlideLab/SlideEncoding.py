@@ -41,37 +41,25 @@ class TilePreprocessing(Dataset):
 def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=16, max_queue = 4, encoder_model="resnet50", high_qual = False ):
     encoder_ = encoder(encoder_type=encoder_model, device=device)
     tile_dataset = TilePreprocessing(tile_path, device=device)
-    
-
-    batch_queue = queue.Queue(maxsize=max_queue) 
     all_features, all_x, all_y, all_tile_paths, high_qual_all= [], [], [], [], []
-    stop_signal = object() 
-
-    def encode_worker():
-        with torch.no_grad():
-            while True:
-                batch = batch_queue.get()
-                if batch is stop_signal:
-                    break
-                x, y, images, tile_paths = batch
-                features = encoder_(images)
-                all_features.append(features.squeeze(-1).squeeze(-1).cpu())
-                all_x.extend(x)
-                all_y.extend(y)
+    with torch.no_grad():
+            for x, y, images, tile_paths in tqdm.tqdm(data_loader, desc=f"Encoding Tiles: {patient_id}"):
+                all_x.extend(x.numpy())
+                all_y.extend(y.numpy())
                 all_tile_paths.extend(tile_paths)
-                batch_queue.task_done()
-                del features
-                gc.collect()
-                torch.cuda.empty_cache()
+                images = images.to(device) 
+                features = encoder_(images).squeeze(-1).squeeze(-1)
+                all_features.append(features.cpu().numpy())
                 
-
-    worker_thread = threading.Thread(target=encode_worker)
-    worker_thread.start()
-    for x, y, images, tile_paths in tqdm.tqdm(DataLoader(tile_dataset, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=(device == "cpu")), desc="Encoding Tiles"):
-        batch_queue.put((x, y, images, tile_paths))
-
-    batch_queue.put(stop_signal)  
-    worker_thread.join() 
+                del features, images
+                torch.cuda.empty_cache()
+    
+        del encoder_
+        gc.collect()
+        torch.cuda.empty_cache()
+    df = pd.read_csv(tile_path)
+    mag = df["desired_magnification"].to_numpy(dtype=np.float32)
+    size = df["desired_size"].to_numpy(dtype=np.float32)
     all_features = torch.cat(all_features, dim=0).numpy().astype(np.float32)
     all_x = np.array(all_x, dtype=np.float32)
     all_y = np.array(all_y, dtype=np.float32)
@@ -82,5 +70,7 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=16
         hdf.create_dataset("x", data=all_x)
         hdf.create_dataset("y", data=all_y)
         hdf.create_dataset("features", data=all_features)
+        hdf.create_dataset("mag", data=mag)
+        hdf.create_dataset("size", data=size)
     return batch_queue
 
