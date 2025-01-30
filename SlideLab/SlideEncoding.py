@@ -42,7 +42,6 @@ class TilePreprocessing(Dataset):
         return x, y, image, tile_path
 
 def monitor_system():
-    """Monitors and logs CPU, memory, and GPU usage."""
     pid = os.getpid()
     process = psutil.Process(pid)
     while True:
@@ -52,7 +51,7 @@ def monitor_system():
         print(f"CPU: {cpu_usage:.2f}% | Memory: {mem_usage:.2f} GB | GPU Memory: {gpu_mem:.2f} GB")
         time.sleep(5)
 
-def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=1000, max_queue=4, encoder_model="resnet50", high_qual=False):
+def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=2, max_queue=4, encoder_model="resnet50", high_qual=False):
     print(f"Encoding: {patient_id} on {device}")
     print(torch.cuda.is_available())
     monitor_thread = threading.Thread(target=monitor_system, daemon=True)
