@@ -37,7 +37,7 @@ class TilePreprocessing(Dataset):
         image = image.to(self.device, non_blocking=True)  
         return x, y, image, tile_path
 
-def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=32, max_queue = 4, encoder_model="resnet50", high_qual = False ):
+def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=32, max_queue = 1000, encoder_model="resnet50", high_qual = False ):
     print(f"Encoding: {patient_id} on {device}")
     encoder_ = encoder(encoder_type=encoder_model, device=device)
     tile_dataset = TilePreprocessing(tile_path, device=device)
@@ -61,7 +61,7 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=32
                 all_tile_paths.extend(tile_paths)
                 batch_queue.task_done()
                 del features
-                # torch.cuda.empty_cache()
+                torch.cuda.empty_cache()
                 
 
     worker_thread = threading.Thread(target=encode_worker)
