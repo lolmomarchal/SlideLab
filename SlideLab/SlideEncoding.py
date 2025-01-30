@@ -20,8 +20,6 @@ def encoder(encoder_type="resnet50", device="cpu"):
         encoder_model = models.resnet50(weights=ResNet50_Weights.DEFAULT)
         encoder_model = torch.nn.Sequential(*list(encoder_model.children())[:-1])
         encoder_model.eval().to(device)
-        if device != "cpu":
-            encoder_model.half()  # Use FP16 for faster computation
     return encoder_model
 
 class TilePreprocessing(Dataset):
