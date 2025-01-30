@@ -74,9 +74,13 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=25
                 if batch is stop_signal:
                     break
                 x, y, images, tile_paths = batch
+                images = images.to(device)
                 
                 start_time = time.time()
-                features = encoder_(images.to(device))
+                print(f"Images are on device: {images.device}")
+                print(f"encoder is on device: {encoder_.device}")
+                features = encoder_(images)
+                
                 end_time = time.time()
                 
                 batch_time = end_time - start_time
