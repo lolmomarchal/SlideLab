@@ -10,9 +10,7 @@ from torchvision.models.resnet import ResNet50_Weights
 from torch.utils.data import Dataset, DataLoader
 from torchvision.io import read_image
 import torch.multiprocessing as mp
-import queue
 import gc
-import threading
 
 mp.set_start_method("spawn", force=True)
 
@@ -43,57 +41,43 @@ class TilePreprocessing(Dataset):
         image = read_image(tile_path).float() / 255.0  
         return x, y, image, tile_path
 
-def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=32, max_queue=4, encoder_model="resnet50", high_qual=False):
+def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=32, encoder_model="resnet50", high_qual=False):
     """Function to encode tiles and save the results in an HDF5 file."""
     print(f"Encoding: {patient_id} on {device}")
     encoder_ = encoder(encoder_type=encoder_model, device=device)
     tile_dataset = TilePreprocessing(tile_path, device=device)
 
-    batch_queue = queue.Queue(maxsize=max_queue) 
     all_features, all_x, all_y, all_tile_paths = [], [], [], []
-    stop_signal = object()
     batch_counter = 0
 
-    def encode_worker():
-        """Worker thread to process batches of images."""
-        nonlocal batch_counter
-        with torch.no_grad():
-            while True:
-                batch = batch_queue.get()
-                if batch is stop_signal:
-                    break
-                x, y, images, tile_paths = batch
-                images = images.to(device, non_blocking=True)
-
-                start_time = time.time()
-                features = encoder_(images)  
-                batch_time = time.time() - start_time
-
-                print(f"Processed batch in {batch_time:.4f} sec | GPU Memory: {torch.cuda.memory_allocated() / (1024 ** 3):.2f} GB")
-
-                all_features.append(features.squeeze(-1).squeeze(-1).cpu())
-                all_x.extend(x)
-                all_y.extend(y)
-                all_tile_paths.extend(tile_paths)
-                batch_queue.task_done()
-                del features, x, y, images, tile_paths
-                torch.cuda.empty_cache()
-                gc.collect()
-
-                batch_counter += 1
-                if batch_counter % 100 == 0:
-                    print(f"Processed {batch_counter} batches. GPU Memory: {torch.cuda.memory_allocated() / (1024 ** 3):.2f} GB")
-
-    worker_thread = threading.Thread(target=encode_worker)
-    worker_thread.start()
-
+    # Test GPU usage by running a dummy input through the model
+    dummy_input = torch.randn(1, 3, 224, 224).to(device)
+    dummy_output = encoder_(dummy_input)
+    print(f"Test Run on GPU: {dummy_output.shape} | GPU Memory: {torch.cuda.memory_allocated() / (1024 ** 3):.2f} GB")
 
     # Process the tiles in batches
     for x, y, images, tile_paths in tqdm.tqdm(DataLoader(tile_dataset, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=(device == "cuda")), desc="Encoding Tiles"):
-        batch_queue.put((x, y, images, tile_paths))
+        # Ensure images are moved to GPU
+        images = images.to(device, non_blocking=True)
 
-    batch_queue.put(stop_signal)  
-    worker_thread.join() 
+        start_time = time.time()
+        features = encoder_(images)  # Run on GPU
+        batch_time = time.time() - start_time
+
+        print(f"Processed batch in {batch_time:.4f} sec | GPU Memory: {torch.cuda.memory_allocated() / (1024 ** 3):.2f} GB")
+
+        all_features.append(features.squeeze(-1).squeeze(-1).cpu())
+        all_x.extend(x)
+        all_y.extend(y)
+        all_tile_paths.extend(tile_paths)
+
+        batch_counter += 1
+        if batch_counter % 100 == 0:
+            print(f"Processed {batch_counter} batches. GPU Memory: {torch.cuda.memory_allocated() / (1024 ** 3):.2f} GB")
+
+        del features, x, y, images, tile_paths
+        torch.cuda.empty_cache()
+        gc.collect()
 
     # Final processing after all batches are done
     df = pd.read_csv(tile_path)
