@@ -11,6 +11,7 @@ from torchvision.io import read_image
 import torch.multiprocessing as mp
 import queue
 import threading
+import multiprocessing as mp
 
 mp.set_start_method("spawn", force=True)
 
@@ -45,32 +46,45 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=16
 
     batch_queue = queue.Queue(maxsize=max_queue) 
     all_features, all_x, all_y, all_tile_paths, high_qual_all= [], [], [], [], []
-    stop_signal = object() 
-
-    def encode_worker():
+    stop_signal = object()
+    def encode_process(batch):  # New function for the process pool
+        x, y, images, tile_paths = batch
         with torch.no_grad():
-            while True:
-                batch = batch_queue.get()
-                if batch is stop_signal:
-                    break
-                x, y, images, tile_paths = batch
-                features = encoder_(images.to(device))
-                all_features.append(features.squeeze(-1).squeeze(-1).cpu())
-                all_x.extend(x)
-                all_y.extend(y)
-                all_tile_paths.extend(tile_paths)
-                batch_queue.task_done()
-                del features
-                #torch.cuda.empty_cache()
+            features = encoder_(images.to(device))
+            return features.squeeze(-1).squeeze(-1).cpu(), x, y, tile_paths
+    with mp.Pool(processes=mp.cpu_count()) as pool: 
+        for batch in tqdm.tqdm(DataLoader(tile_dataset, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=(device != "cpu")), desc="Encoding Tiles"):
+            results = pool.map(encode_process, [batch]) 
+            features, x, y, tile_paths = results[0] 
+            all_features.append(features)
+            all_x.extend(x)
+            all_y.extend(y)
+            all_tile_paths.extend(tile_paths)
                 
 
-    worker_thread = threading.Thread(target=encode_worker)
-    worker_thread.start()
-    for x, y, images, tile_paths in tqdm.tqdm(DataLoader(tile_dataset, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=(device == "cpu")), desc="Encoding Tiles"):
-        batch_queue.put((x, y, images, tile_paths))
+    # def encode_worker():
+    #     with torch.no_grad():
+    #         while True:
+    #             batch = batch_queue.get()
+    #             if batch is stop_signal:
+    #                 break
+    #             x, y, images, tile_paths = batch
+    #             features = encoder_(images.to(device))
+    #             all_features.append(features.squeeze(-1).squeeze(-1).cpu())
+    #             all_x.extend(x)
+    #             all_y.extend(y)
+    #             all_tile_paths.extend(tile_paths)
+    #             batch_queue.task_done()
+    #             del features
+                #torch.cuda.empty_cache()
 
-    batch_queue.put(stop_signal)  
-    worker_thread.join() 
+    # worker_thread = threading.Thread(target=encode_worker)
+    # worker_thread.start()
+    # for x, y, images, tile_paths in tqdm.tqdm(DataLoader(tile_dataset, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=(device == "cpu")), desc="Encoding Tiles"):
+    #     batch_queue.put((x, y, images, tile_paths))
+
+    # batch_queue.put(stop_signal)  
+    # worker_thread.join() 
     df = pd.read_csv(tile_path)
     all_features = torch.cat(all_features, dim=0).numpy().astype(np.float32)
     all_x = np.array(all_x, dtype=np.float32)
