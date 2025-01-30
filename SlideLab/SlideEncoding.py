@@ -4,13 +4,12 @@ import torch
 import numpy as np
 import pandas as pd
 import h5py
+import gc
 from torchvision import models
 from torchvision.models.resnet import ResNet50_Weights
 from torch.utils.data import Dataset, DataLoader
 from torchvision.io import read_image
 import torch.multiprocessing as mp
-import queue
-import threading
 
 mp.set_start_method("spawn", force=True)
 
@@ -44,14 +43,17 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=16
     dataset = TilePreprocessing(tile_path)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=(device == "cpu"))
 
+    total_tiles = len(dataset)
+    feature_dim = 2048  # Assuming ResNet50 output
+
     result_path = os.path.join(result_path, f"{patient_id}.h5")
     with h5py.File(result_path, "w") as hdf:
-        hdf.create_dataset("tile_path", (len(dataset),), dtype="S256")
-        hdf.create_dataset("x", (len(dataset),), dtype=np.float32)
-        hdf.create_dataset("y", (len(dataset),), dtype=np.float32)
-        hdf.create_dataset("mag", data=dataset.mag, dtype=np.float32)
-        hdf.create_dataset("size", data=dataset.size, dtype=np.float32)
-        hdf.create_dataset("features", (len(dataset), 2048), dtype=np.float32)  # Assuming ResNet50 output
+        hdf.create_dataset("tile_path", (total_tiles,), dtype="S256", maxshape=(None,))
+        hdf.create_dataset("x", (total_tiles,), dtype=np.float32, maxshape=(None,))
+        hdf.create_dataset("y", (total_tiles,), dtype=np.float32, maxshape=(None,))
+        hdf.create_dataset("mag", data=dataset.mag, dtype=np.float32, maxshape=(None,))
+        hdf.create_dataset("size", data=dataset.size, dtype=np.float32, maxshape=(None,))
+        hdf.create_dataset("features", (total_tiles, feature_dim), dtype=np.float32, maxshape=(None, feature_dim))
 
         idx = 0
         with torch.no_grad():
@@ -65,8 +67,16 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=16
                 hdf["features"][idx:idx + batch_size] = features
 
                 idx += batch_size
-                if idx % save_every == 0:
+                if idx % save_every == 0 or idx >= total_tiles:
                     hdf.flush()  # Save progress to disk
 
-                del features
+                # Cleanup to prevent memory issues
+                del features, images, x, y, tile_paths
                 torch.cuda.empty_cache()
+                gc.collect()
+
+        # If for some reason the dataset was oversized, resize it
+        for key in ["x", "y", "tile_path", "features"]:
+            hdf[key].resize((idx,) + hdf[key].shape[1:])
+
+    print(f"Encoding complete: {result_path}")
