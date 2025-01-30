@@ -10,28 +10,24 @@ from torchvision import models
 from torchvision.models.resnet import ResNet50_Weights
 from torch.utils.data import Dataset, DataLoader
 from torchvision.io import read_image
-import torch.multiprocessing as mp
-import queue
 import gc
 import threading
-import multiprocessing as mp
 
-mp.set_start_method("spawn", force=True)
+torch.backends.cudnn.benchmark = True  # Optimize for varying input sizes
 
 def encoder(encoder_type="resnet50", device="cpu"):
     if encoder_type == "resnet50":
         encoder_model = models.resnet50(weights=ResNet50_Weights.DEFAULT)
         encoder_model = torch.nn.Sequential(*list(encoder_model.children())[:-1])
-        encoder_model.eval().to(device)  
-        if device == "cpu":
-            encoder_model = torch.quantization.quantize_dynamic(encoder_model, {torch.nn.Linear}, dtype=torch.qint8)
+        encoder_model.eval().to(device)
+        if device != "cpu":
+            encoder_model.half()  # Use FP16 for faster computation
     return encoder_model
 
 class TilePreprocessing(Dataset):
-    def __init__(self, df_file, device="cpu"):
+    def __init__(self, df_file):
         df = pd.read_csv(df_file)
         self.data = df[["x", "y", "tile_path"]].values  
-        self.device = device
 
     def __len__(self):
         return len(self.data)
@@ -51,91 +47,45 @@ def monitor_system():
         print(f"CPU: {cpu_usage:.2f}% | Memory: {mem_usage:.2f} GB | GPU Memory: {gpu_mem:.2f} GB")
         time.sleep(5)
 
-def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=2, max_queue=4, encoder_model="resnet50", high_qual=False):
+def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=16, encoder_model="resnet50"):
     print(f"Encoding: {patient_id} on {device}")
-    print(torch.cuda.is_available())
+    
+    if device == "cuda":
+        torch.cuda.empty_cache()  # Ensure clean GPU memory
+
     monitor_thread = threading.Thread(target=monitor_system, daemon=True)
     monitor_thread.start()
     
     encoder_ = encoder(encoder_type=encoder_model, device=device)
-    tile_dataset = TilePreprocessing(tile_path, device=device)
+    tile_dataset = TilePreprocessing(tile_path)
+    data_loader = DataLoader(tile_dataset, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=(device == "cuda"))
 
-    # batch_queue = queue.Queue(maxsize=max_queue) 
     all_features, all_x, all_y, all_tile_paths = [], [], [], []
-    # stop_signal = object()
-    batch_counter = 0
-    for x, y, images, tile_paths in tqdm.tqdm(DataLoader(tile_dataset, batch_size=batch_size, shuffle=False), desc="Encoding Tiles"):
-        with torch.no_grad():
-            all_x.extend(x)
-            all_y.extend(y)
+    
+    with torch.no_grad():
+        for x, y, images, tile_paths in tqdm.tqdm(data_loader, desc="Encoding Tiles"):
+            all_x.extend(x.numpy())
+            all_y.extend(y.numpy())
             all_tile_paths.extend(tile_paths)
-            images = images.to(device)
-            features = encoder_(images)
-            all_features.append(features.squeeze(-1).squeeze(-1).cpu())
-            del features, x, y, images, tile_paths
-            batch_counter+=1
-            if batch_counter%50 == 0:
-                gc.collect()
-                torch.cuda.empty_cache()
+
+            images = images.to(device, dtype=torch.float16 if device == "cuda" else torch.float32)  # Use FP16 for GPU
+            features = encoder_(images).squeeze(-1).squeeze(-1)
+            
+            all_features.append(features.cpu().numpy())  # Move once per batch
+            
+            del features, images
+            torch.cuda.empty_cache()
+
     del encoder_
     gc.collect()
     torch.cuda.empty_cache()
-    monitor_thread.join()
 
-            
-
-            
-    # monitor_thread = threading.Thread(target=monitor_system, daemon=True)
-    # monitor_thread.start()
-
-    # def encode_worker():
-    #     nonlocal batch_counter
-    #     with torch.no_grad():
-    #         while True:
-    #             batch = batch_queue.get()
-    #             if batch is stop_signal:
-    #                 break
-    #             x, y, images, tile_paths = batch
-    #             images = images.to(device)
-                
-    #             start_time = time.time()
-    #             # print(f"Images are on device: {images.device}")
-    #             # print(f"encoder is on device: {encoder_.device}")
-    #             features = encoder_(images)
-                
-    #             end_time = time.time()
-                
-    #             batch_time = end_time - start_time
-    #             # print(f"Batch {batch_counter}: Processing Time = {batch_time:.4f} sec")
-                
-    #             all_features.append(features.squeeze(-1).squeeze(-1).cpu())
-    #             all_x.extend(x)
-    #             all_y.extend(y)
-    #             all_tile_paths.extend(tile_paths)
-    #             batch_queue.task_done()
-    #             del features, x, y, images, tile_paths
-                
-    #             batch_counter += 1
-    #             if batch_counter % 50 == 0:
-    #                 # print("Clearing CUDA cache and collecting garbage")
-    #                 torch.cuda.empty_cache()
-    #                 gc.collect()
-
-    # worker_thread = threading.Thread(target=encode_worker)
-    # worker_thread.start()
-    
-    # for x, y, images, tile_paths in tqdm.tqdm(DataLoader(tile_dataset, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=(device == "cpu")), desc="Encoding Tiles"):
-    #     batch_queue.put((x, y, images, tile_paths))
-
-    # batch_queue.put(stop_signal)  
-    # worker_thread.join() 
-    
     df = pd.read_csv(tile_path)
-    all_features = torch.cat(all_features, dim=0).numpy().astype(np.float32)
+    all_features = np.concatenate(all_features, axis=0).astype(np.float32)
     all_x = np.array(all_x, dtype=np.float32)
     all_y = np.array(all_y, dtype=np.float32)
-    mag = np.array(df["desired_magnification"], dtype=np.float32)
-    size = np.array(df["desired_size"], dtype=np.float32)
+    mag = df["desired_magnification"].to_numpy(dtype=np.float32)
+    size = df["desired_size"].to_numpy(dtype=np.float32)
 
     result_path = os.path.join(result_path, f"{patient_id}.h5")
     
@@ -146,3 +96,5 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=2,
         hdf.create_dataset("mag", data=mag)
         hdf.create_dataset("size", data=size)
         hdf.create_dataset("features", data=all_features)
+
+    monitor_thread.join()
