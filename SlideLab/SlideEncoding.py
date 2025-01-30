@@ -68,11 +68,10 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=16
             all_y.extend(y.numpy())
             all_tile_paths.extend(tile_paths)
 
-            images = images.to(device, dtype=torch.float16 if device == "cuda" else torch.float32)  # Use FP16 for GPU
+            images = images.to(device, dtype= torch.float32)  
             features = encoder_(images).squeeze(-1).squeeze(-1)
             
-            all_features.append(features.cpu().numpy())  # Move once per batch
-            
+            all_features.append(features.cpu().numpy()) 
             del features, images
             torch.cuda.empty_cache()
 
