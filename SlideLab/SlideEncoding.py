@@ -13,7 +13,6 @@ import queue
 import threading
 import gc
 torch.backends.cudnn.benchmark = True 
-mp.set_start_method("spawn", force=True)
 
 def encoder(encoder_type="resnet50", device="cpu"):
     if encoder_type == "resnet50":
