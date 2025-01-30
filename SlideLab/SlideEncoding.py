@@ -35,15 +35,15 @@ class TilePreprocessing(Dataset):
         image = read_image(tile_path).float() / 255.0  
         return x, y, image, tile_path
 
-def monitor_system():
-    pid = os.getpid()
-    process = psutil.Process(pid)
-    while True:
-        cpu_usage = process.cpu_percent()
-        mem_usage = process.memory_info().rss / (1024 ** 3)  
-        gpu_mem = torch.cuda.memory_allocated() / (1024 ** 3) if torch.cuda.is_available() else 0
-        print(f"CPU: {cpu_usage:.2f}% | Memory: {mem_usage:.2f} GB | GPU Memory: {gpu_mem:.2f} GB")
-        time.sleep(5)
+# def monitor_system():
+#     pid = os.getpid()
+#     process = psutil.Process(pid)
+#     while True:
+#         cpu_usage = process.cpu_percent()
+#         mem_usage = process.memory_info().rss / (1024 ** 3)  
+#         gpu_mem = torch.cuda.memory_allocated() / (1024 ** 3) if torch.cuda.is_available() else 0
+#         print(f"CPU: {cpu_usage:.2f}% | Memory: {mem_usage:.2f} GB | GPU Memory: {gpu_mem:.2f} GB")
+#         time.sleep(5)
 
 def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=16, encoder_model="resnet50"):
     print(f"Encoding: {patient_id} on {device}")
@@ -51,8 +51,8 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=16
     if device == "cuda":
         torch.cuda.empty_cache()  # Ensure clean GPU memory
 
-    monitor_thread = threading.Thread(target=monitor_system, daemon=True)
-    monitor_thread.start()
+    # monitor_thread = threading.Thread(target=monitor_system, daemon=True)
+    # monitor_thread.start()
     
     encoder_ = encoder(encoder_type=encoder_model, device=device)
     tile_dataset = TilePreprocessing(tile_path)
@@ -94,4 +94,4 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=16
         hdf.create_dataset("size", data=size)
         hdf.create_dataset("features", data=all_features)
 
-    monitor_thread.join()
+    # monitor_thread.join()
