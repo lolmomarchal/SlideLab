@@ -37,7 +37,7 @@ class TilePreprocessing(Dataset):
         image = image.to(self.device, non_blocking=True)  
         return x, y, image, tile_path
 
-def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=16, max_queue = 1000, encoder_model="resnet50", high_qual = False ):
+def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=16, max_queue = 10, encoder_model="resnet50", high_qual = False ):
     print(f"Encoding: {patient_id} on {device}")
     encoder_ = encoder(encoder_type=encoder_model, device=device)
     tile_dataset = TilePreprocessing(tile_path, device=device)
