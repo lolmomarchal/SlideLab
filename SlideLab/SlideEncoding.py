@@ -52,7 +52,7 @@ def monitor_system():
         print(f"CPU: {cpu_usage:.2f}% | Memory: {mem_usage:.2f} GB | GPU Memory: {gpu_mem:.2f} GB")
         time.sleep(5)
 
-def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=8, max_queue=4, encoder_model="resnet50", high_qual=False):
+def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=256, max_queue=4, encoder_model="resnet50", high_qual=False):
     print(f"Encoding: {patient_id} on {device}")
     
     encoder_ = encoder(encoder_type=encoder_model, device=device)
