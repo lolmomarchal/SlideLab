@@ -50,14 +50,8 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=32
     all_features, all_x, all_y, all_tile_paths = [], [], [], []
     batch_counter = 0
 
-    # Test GPU usage by running a dummy input through the model
-    dummy_input = torch.randn(1, 3, 224, 224).to(device)
-    dummy_output = encoder_(dummy_input)
-    print(f"Test Run on GPU: {dummy_output.shape} | GPU Memory: {torch.cuda.memory_allocated() / (1024 ** 3):.2f} GB")
 
-    # Process the tiles in batches
-    for x, y, images, tile_paths in tqdm.tqdm(DataLoader(tile_dataset, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=(device == "cuda")), desc="Encoding Tiles"):
-        # Ensure images are moved to GPU
+    for x, y, images, tile_paths in tqdm.tqdm(DataLoader(tile_dataset, batch_size=batch_size, shuffle=False), desc="Encoding Tiles"):
         images = images.to(device, non_blocking=True)
 
         start_time = time.time()
@@ -78,8 +72,6 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=32
         del features, x, y, images, tile_paths
         torch.cuda.empty_cache()
         gc.collect()
-
-    # Final processing after all batches are done
     df = pd.read_csv(tile_path)
     all_features = torch.cat(all_features, dim=0).numpy().astype(np.float32)
     all_x = np.array(all_x, dtype=np.float32)
@@ -89,7 +81,6 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=32
 
     result_path = os.path.join(result_path, f"{patient_id}.h5")
     
-    # Save the results to an HDF5 file
     with h5py.File(result_path, "w") as hdf:
         hdf.create_dataset("tile_path", data=np.array(all_tile_paths, dtype="S"))
         hdf.create_dataset("x", data=all_x)
