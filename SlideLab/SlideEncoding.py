@@ -41,19 +41,20 @@ class TilePreprocessing(Dataset):
         image = read_image(tile_path).float() / 255.0  
         return x, y, image, tile_path
 
-# def monitor_system():
-#     """Monitors and logs CPU, memory, and GPU usage."""
-#     pid = os.getpid()
-#     process = psutil.Process(pid)
-#     while True:
-#         cpu_usage = process.cpu_percent()
-#         mem_usage = process.memory_info().rss / (1024 ** 3)  
-#         gpu_mem = torch.cuda.memory_allocated() / (1024 ** 3) if torch.cuda.is_available() else 0
-#         print(f"CPU: {cpu_usage:.2f}% | Memory: {mem_usage:.2f} GB | GPU Memory: {gpu_mem:.2f} GB")
-#         time.sleep(5)
+def monitor_system():
+    """Monitors and logs CPU, memory, and GPU usage."""
+    pid = os.getpid()
+    process = psutil.Process(pid)
+    while True:
+        cpu_usage = process.cpu_percent()
+        mem_usage = process.memory_info().rss / (1024 ** 3)  
+        gpu_mem = torch.cuda.memory_allocated() / (1024 ** 3) if torch.cuda.is_available() else 0
+        print(f"CPU: {cpu_usage:.2f}% | Memory: {mem_usage:.2f} GB | GPU Memory: {gpu_mem:.2f} GB")
+        time.sleep(2)
 
-def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=16, max_queue=4, encoder_model="resnet50", high_qual=False):
+def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=256, max_queue=4, encoder_model="resnet50", high_qual=False):
     print(f"Encoding: {patient_id} on {device}")
+    print(torch.cuda.is_available())
     
     encoder_ = encoder(encoder_type=encoder_model, device=device)
     tile_dataset = TilePreprocessing(tile_path, device=device)
@@ -62,8 +63,8 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=16
     all_features, all_x, all_y, all_tile_paths = [], [], [], []
     stop_signal = object()
     batch_counter = 0
-    with torch.no_grad():
-        for x, y, images, tile_paths in tqdm.tqdm(DataLoader(tile_dataset, batch_size=batch_size, shuffle=False), desc="Encoding Tiles"):
+    for x, y, images, tile_paths in tqdm.tqdm(DataLoader(tile_dataset, batch_size=batch_size, shuffle=False), desc="Encoding Tiles"):
+        with torch.no_grad():
             all_x.extend(x)
             all_y.extend(y)
             all_tile_paths.extend(tile_paths)
@@ -75,6 +76,9 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=16
             if batch_counter%5 == 0:
                 gc.collect()
                 torch.cuda.empty_cache()
+    del encoder_
+    gc.collect()
+    torch.cuda.empty_cache()
 
             
 
