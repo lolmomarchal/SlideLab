@@ -50,7 +50,7 @@ def monitor_system():
         mem_usage = process.memory_info().rss / (1024 ** 3)  
         gpu_mem = torch.cuda.memory_allocated() / (1024 ** 3) if torch.cuda.is_available() else 0
         print(f"CPU: {cpu_usage:.2f}% | Memory: {mem_usage:.2f} GB | GPU Memory: {gpu_mem:.2f} GB")
-        time.sleep(0.005)
+        time.sleep(5)
 
 def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=256, max_queue=4, encoder_model="resnet50", high_qual=False):
     print(f"Encoding: {patient_id} on {device}")
@@ -75,7 +75,7 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=25
             all_features.append(features.squeeze(-1).squeeze(-1).cpu())
             del features, x, y, images, tile_paths
             batch_counter+=1
-            if batch_counter%5 == 0:
+            if batch_counter%50 == 0:
                 gc.collect()
                 torch.cuda.empty_cache()
     del encoder_
