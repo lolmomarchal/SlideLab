@@ -54,9 +54,9 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=16
                 del features, images
                 torch.cuda.empty_cache()
     
-        del encoder_
-        gc.collect()
-        torch.cuda.empty_cache()
+    del encoder_
+    gc.collect()
+    torch.cuda.empty_cache()
     df = pd.read_csv(tile_path)
     mag = df["desired_magnification"].to_numpy(dtype=np.float32)
     size = df["desired_size"].to_numpy(dtype=np.float32)
