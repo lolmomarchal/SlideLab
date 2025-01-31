@@ -62,9 +62,8 @@ class Reports:
 
     def error_report(self):
         if self.error[0]:
-            print(self.error)
             columns = ["Sample ID", "Path", "Error", "Step in Pipeline"]
-            error = pd.DataFrame(self.error, columns=columns)
+            error = pd.DataFrame(self.error[0], columns=columns)
             if os.path.exists(self.error_path):
                 existing_error = pd.read_csv(self.error_path)
                 combined_error = pd.concat([existing_error, error]).drop_duplicates()
