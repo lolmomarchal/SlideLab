@@ -256,7 +256,7 @@ def preprocessing(path, patient_id, args):
     natural_magnification = int(slide.properties.get("openslide.objective-power", 40))
     desired_magnification = args.desired_magnification
     if natural_magnification < desired_magnification:
-        error.append((patient_id, path, "Desired magnification is higher than natural magnification"))
+        error.append((patient_id, path, "Desired magnification is higher than natural magnification", "Magnification Sanity Check"))
         summary = summary_()
         summary.append("Error")
         return summary, error
@@ -265,7 +265,14 @@ def preprocessing(path, patient_id, args):
     sample_path = os.path.join(args.output_path, patient_id)
     start_mask_user = time.time()
     start_mask_cpu = time.process_time()
-    mask, scale = TissueMask(slide, result_path=sample_path).get_mask_attributes()
+    try:
+        mask, scale = TissueMask(slide, result_path=sample_path).get_mask_attributes()
+    except Exception as e:
+        error.append((patient_id, path, e, "Tissue Mask"))
+        summary = summary_()
+        summary.append("Error")
+        return summary, error
+        
     time_mask_cpu = time.process_time() - start_mask_cpu
     time_mask = time.time() - start_mask_user
 
