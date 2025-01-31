@@ -387,7 +387,7 @@ def preprocessing(path, patient_id, args):
         os.makedirs(QC_path, exist_ok=True)
         # choose random coordinate
         non_blurry_coords = list(zip(df_tiles['x'], df_tiles['y']))
-        random_coord = non_blurry_coords[random.randint(0, len(non_blurry_coords))]
+        random_coord = non_blurry_coords[random.randint(0, len(non_blurry_coords)-1)]
         region = slide.read_region((random_coord[0], random_coord[1]), 0, (adjusted_size, adjusted_size)).convert(
             'RGB').resize(
             (desired_size, desired_size), Image.BILINEAR)
