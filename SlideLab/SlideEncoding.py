@@ -36,7 +36,7 @@ class TilePreprocessing(Dataset):
         image = read_image(tile_path).float() / 255.0  
         return x, y, image, tile_path
 
-def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=32,  encoder_model="resnet50", high_qual = False ):
+def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=16,  encoder_model="resnet50", high_qual = False ):
     encoder_ = encoder(encoder_type=encoder_model, device=device)
     tile_dataset = TilePreprocessing(tile_path, device=device)
     all_features, all_x, all_y, all_tile_paths, high_qual_all= [], [], [], [], []
@@ -44,7 +44,7 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=32
     batch_ = 0
 
     with torch.no_grad():
-            for x, y, images, tile_paths in tqdm.tqdm(data_loader, desc=f"Encoding Tiles: {patient_id}"):
+            for x, y, images, tile_paths in tqdm.tqdm(data_loader, desc=f"Encoding Tiles: {patient_id} on {device}"):
                 all_x.extend(x.numpy())
                 all_y.extend(y.numpy())
                 all_tile_paths.extend(tile_paths)
