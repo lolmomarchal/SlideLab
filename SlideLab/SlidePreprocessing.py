@@ -583,7 +583,7 @@ def main():
         for i, row in tqdm.tqdm(patients.iterrows(), total=len(patients)):
             patient_id = row["Patient ID"]
             path = os.path.join(output_path, patient_id, patient_id + ".csv")
-            if not os.path.isfile(os.path.join(encoder_path, str(patient_id) + ".h5")):
+            if not os.path.isfile(os.path.join(encoder_path, str(patient_id) + ".h5")) and os.path.isfile(path):
                 SlideEncoding.encode_tiles(patient_id, path, encoder_path, device)
 
         patient_files_encoded(patient_path)
