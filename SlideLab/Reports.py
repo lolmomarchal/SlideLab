@@ -62,6 +62,7 @@ class Reports:
 
     def error_report(self):
         if self.error[0]:
+            print(self.error)
             columns = ["Sample ID", "Path", "Error", "Step in Pipeline"]
             error = pd.DataFrame(self.error, columns=columns)
             if os.path.exists(self.error_path):
