@@ -64,7 +64,8 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=32
     df = pd.read_csv(tile_path)
     mag = df["desired_magnification"].to_numpy(dtype=np.float32)
     size = df["desired_size"].to_numpy(dtype=np.float32)
-    all_features = torch.cat(all_features, dim=0)
+    all_features = [torch.tensor(f) if isinstance(f, np.ndarray) else f for f in all_features]
+    all_features = torch.cat(all_features, dim=0).numpy().astype(np.float32)
     all_x = np.array(all_x, dtype=np.float32)
     all_y = np.array(all_y, dtype=np.float32)
     result_path = os.path.join(result_path, f"{patient_id}.h5")
