@@ -8,11 +8,18 @@ from torchvision import models
 from torchvision.models.resnet import ResNet50_Weights
 from torch.utils.data import Dataset, DataLoader
 from torchvision.io import read_image
-import torch.multiprocessing as mp
-import queue
-import threading
 import gc
+import random
+
 torch.backends.cudnn.benchmark = True 
+
+def set_seed(seed):
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+        torch.cuda.manual_seed(seed)
 
 def encoder(encoder_type="resnet50", device="cpu"):
     if encoder_type == "resnet50":
@@ -22,6 +29,7 @@ def encoder(encoder_type="resnet50", device="cpu"):
         if device == "cpu":
             encoder_model = torch.quantization.quantize_dynamic(encoder_model, {torch.nn.Linear}, dtype=torch.qint8)
     return encoder_model
+
 class TilePreprocessing(Dataset):
     def __init__(self, df_file, device="cpu"):
         df = pd.read_csv(df_file)
@@ -36,44 +44,57 @@ class TilePreprocessing(Dataset):
         image = read_image(tile_path).float() / 255.0  
         return x, y, image, tile_path
 
-def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=64,  encoder_model="resnet50", high_qual = False ):
+def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=64, encoder_model="resnet50", seed=42):
+    if seed is not None:
+        set_seed(seed)
+        
     encoder_ = encoder(encoder_type=encoder_model, device=device)
     tile_dataset = TilePreprocessing(tile_path, device=device)
-    all_features, all_x, all_y, all_tile_paths, high_qual_all= [], [], [], [], []
     data_loader = DataLoader(tile_dataset, batch_size=batch_size, shuffle=False)
-    batch_ = 0
-
-    with torch.no_grad():
+    result_path = os.path.join(result_path, f"{patient_id}.h5")
+    
+    with h5py.File(result_path, "a") as hdf:
+        if "x" not in hdf:
+            mag = pd.read_csv(tile_path)["desired_magnification"].to_numpy(dtype=np.float32)
+            size = pd.read_csv(tile_path)["desired_size"].to_numpy(dtype=np.float32)
+            hdf.create_dataset("mag", data=mag)
+            hdf.create_dataset("size", data=size)
+            hdf.create_dataset("x", shape=(0,), maxshape=(None,), dtype=np.float32, chunks=True)
+            hdf.create_dataset("y", shape=(0,), maxshape=(None,), dtype=np.float32, chunks=True)
+            hdf.create_dataset("tile_path", shape=(0,), maxshape=(None,), dtype=h5py.string_dtype(), chunks=True)
+            hdf.create_dataset("features", shape=(0, 2048), maxshape=(None, 2048), dtype=np.float32, chunks=True)
+        
+        all_x, all_y, all_tile_paths, all_features = [], [], [], []
+        batch_ = 0
+        
+        with torch.no_grad():
             for x, y, images, tile_paths in tqdm.tqdm(data_loader, desc=f"Encoding Tiles: {patient_id} on {device}"):
                 all_x.extend(x.numpy())
                 all_y.extend(y.numpy())
                 all_tile_paths.extend(tile_paths)
-                images = images.to(device) 
-                features = encoder_(images).squeeze(-1).squeeze(-1)
-                all_features.append(features.cpu().numpy())
+                images = images.to(device)
+                features = encoder_(images).squeeze(-1).squeeze(-1).cpu().numpy()
+                all_features.append(features)
                 
-                del features, images,x,y,tile_paths
-                batch_+=1
-                if batch_%50 ==0:
+                batch_ += 1
+                if batch_ % 50 == 0:
+                    hdf["x"].resize((hdf["x"].shape[0] + len(all_x),))
+                    hdf["x"][-len(all_x):] = all_x
+                    
+                    hdf["y"].resize((hdf["y"].shape[0] + len(all_y),))
+                    hdf["y"][-len(all_y):] = all_y
+                    
+                    hdf["tile_path"].resize((hdf["tile_path"].shape[0] + len(all_tile_paths),))
+                    hdf["tile_path"][-len(all_tile_paths):] = np.array(all_tile_paths, dtype=h5py.string_dtype())
+                    
+                    all_features = np.concatenate(all_features, axis=0)
+                    hdf["features"].resize((hdf["features"].shape[0] + all_features.shape[0], 2048))
+                    hdf["features"][-all_features.shape[0]:] = all_features
+                    
+                    all_x, all_y, all_tile_paths, all_features = [], [], [], []
                     gc.collect()
                     torch.cuda.empty_cache()
     
     del encoder_
     gc.collect()
     torch.cuda.empty_cache()
-    df = pd.read_csv(tile_path)
-    mag = df["desired_magnification"].to_numpy(dtype=np.float32)
-    size = df["desired_size"].to_numpy(dtype=np.float32)
-    all_features = [torch.tensor(f) if isinstance(f, np.ndarray) else f for f in all_features]
-    all_features = torch.cat(all_features, dim=0).numpy().astype(np.float32)
-    all_x = np.array(all_x, dtype=np.float32)
-    all_y = np.array(all_y, dtype=np.float32)
-    result_path = os.path.join(result_path, f"{patient_id}.h5")
-    
-    with h5py.File(result_path, "w") as hdf:
-        hdf.create_dataset("tile_path", data=np.array(all_tile_paths, dtype="S"))
-        hdf.create_dataset("x", data=all_x)
-        hdf.create_dataset("y", data=all_y)
-        hdf.create_dataset("features", data=all_features)
-        hdf.create_dataset("mag", data=mag)
-        hdf.create_dataset("size", data=size)
