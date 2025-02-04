@@ -47,6 +47,7 @@ class TilePreprocessing(Dataset):
 def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=64, encoder_model="resnet50", seed=42):
     if seed is not None:
         set_seed(seed)
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         
     encoder_ = encoder(encoder_type=encoder_model, device=device)
     tile_dataset = TilePreprocessing(tile_path, device=device)
