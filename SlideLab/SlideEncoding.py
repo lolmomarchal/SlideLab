@@ -12,8 +12,8 @@ import torch.multiprocessing as mp
 import queue
 import threading
 import gc
-# torch.backends.cudnn.benchmark = True 
-
+torch.backends.cudnn.benchmark = True 
+torch.backends.cuda.matmul.allow_tf32 = True
 def encoder(encoder_type="resnet50", device="cpu"):
     if encoder_type == "resnet50":
         encoder_model = models.resnet50(weights=ResNet50_Weights.DEFAULT)
