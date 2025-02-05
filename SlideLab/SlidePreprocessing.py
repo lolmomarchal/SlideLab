@@ -29,7 +29,7 @@ SlidePreprocessing.py
 
 Author: Lorenzo Olmo Marchal
 Created: 3/5/2024
-Last Updated:  1/10/2025
+Last Updated:  2/4/2025
 
 Description:
 This script automates the preprocessing and normalization of Whole Slide Images (WSI) in digital histopathology. 
@@ -46,7 +46,24 @@ within the WSI file.
 summary = []
 errors = []
 
+############### post processing ##############
 
+def filter_patients(patient_df, summary_df, args):
+    patient_df = pd.read_csv(patient_df)
+    summary_df = pd.read_csv(summary_df)
+    if not args.remove_blurry_tiles:
+        column = "tiles_passing_tissue_thresh"
+    else:
+        column = "non_blurry_tiles"
+    not_passing_QC = []
+    for i, row in summary_df.iterrows():
+        if row[column] < args.min_tiles:
+            not_passing_QC.append(row["sample_id"])
+    # filter based on sample ID
+    filtered_patients = patient_df[~patient_df["sample_id"].isin(not_passing_QC)]
+    filtered_path = os.path.join(args.output_path, "filtered_patients.csv")
+    filtered_patients.to_csv(filtered_path, index = False)
+        
 def preprocess_patient(row, device, encoder_path, args):
     result = row["Preprocessing Path"]
     original = row["Original Slide Path"]
@@ -530,11 +547,17 @@ def parse_args():
                         help="Threshold to consider a tile as Tissue(default: %(default)s)")
     parser.add_argument("-bh", "--blur_threshold", type=float, default=0.015,
                         help="Threshold for laplace filter variance (default: %(default)s)")
+    
 
     # for devices + multithreading
     parser.add_argument("--device", default=None)
     parser.add_argument("--gpu_processes", type=int, default=1)
     parser.add_argument("--cpu_processes", type=int, default=os.cpu_count())
+
+    # QC 
+    parser.add_argument( "--min_tiles", type=float, default=0,
+                        help="Number of tiles a patient should have.")
+    
 
     return parser.parse_args()
 
