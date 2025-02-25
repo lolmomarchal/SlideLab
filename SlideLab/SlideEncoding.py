@@ -36,13 +36,12 @@ class TilePreprocessing(Dataset):
         image = read_image(tile_path).float() / 255.0  
         return x, y, image, tile_path
 
-def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=256,  encoder_model="resnet50", high_qual = False ):
+def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=512,  encoder_model="resnet50", high_qual = False ):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     encoder_ = encoder(encoder_type=encoder_model, device=device)
     tile_dataset = TilePreprocessing(tile_path, device=device)
     all_features, all_x, all_y, all_tile_paths, high_qual_all= [], [], [], [], []
-    data_loader = DataLoader(tile_dataset, batch_size=batch_size, shuffle=False)
-    batch_ = 0
+    data_loader = DataLoader(tile_dataset, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory = True)
 
     with torch.inference_mode():
             for x, y, images, tile_paths in tqdm.tqdm(data_loader, desc=f"Encoding Tiles: {patient_id} on {device}"):
@@ -51,14 +50,7 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=25
                 all_tile_paths.extend(tile_paths)
                 images = images.to(device, non_blocking = True) 
                 features = encoder_(images).squeeze(-1).squeeze(-1).to("cpu")
-                all_features.append(features.cpu().numpy())
-                
-                del features, images,x,y,tile_paths
-                batch_+=1
-                if batch_%50 ==0:
-                    gc.collect()
-                    torch.cuda.empty_cache()
-    
+                all_features.append(features.cpu().numpy())    
     del encoder_
     gc.collect()
     torch.cuda.empty_cache()
