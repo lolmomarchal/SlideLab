@@ -44,7 +44,7 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=64
     data_loader = DataLoader(tile_dataset, batch_size=batch_size, shuffle=False)
     batch_ = 0
 
-    with torch.no_grad():
+    with torch.inference_mode():
             for x, y, images, tile_paths in tqdm.tqdm(data_loader, desc=f"Encoding Tiles: {patient_id} on {device}"):
                 all_x.extend(x.numpy())
                 all_y.extend(y.numpy())
