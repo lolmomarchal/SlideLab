@@ -37,7 +37,7 @@ class TilePreprocessing(Dataset):
         return x, y, image, tile_path
 
 def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=256,  encoder_model="resnet50", high_qual = False ):
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     encoder_ = encoder(encoder_type=encoder_model, device=device)
     tile_dataset = TilePreprocessing(tile_path, device=device)
     all_features, all_x, all_y, all_tile_paths, high_qual_all= [], [], [], [], []
