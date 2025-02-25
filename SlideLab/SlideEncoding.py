@@ -49,7 +49,7 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=25
                 all_x.extend(x.numpy())
                 all_y.extend(y.numpy())
                 all_tile_paths.extend(tile_paths)
-                images = images.to(device) 
+                images = images.to(device, non_blocking = True) 
                 features = encoder_(images).squeeze(-1).squeeze(-1).to("cpu")
                 all_features.append(features.cpu().numpy())
                 
