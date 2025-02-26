@@ -602,14 +602,21 @@ def main():
             Reports.Reports([results[0]], [results[1]], output_path)
             # results.append(preprocessing(row["Original Slide Path"], row["Patient ID"], args))
     # encode after all patients have been preprocessed
+    encoding_times = []
     if args.encode:
         for i, row in tqdm.tqdm(patients.iterrows(), total=len(patients)):
             patient_id = row["Patient ID"]
             path = os.path.join(output_path, patient_id, patient_id + ".csv")
             if not os.path.isfile(os.path.join(encoder_path, str(patient_id) + ".h5")) and os.path.isfile(path):
+                start_cpu_time = time.process_time()
+                start_user_time = time.time()
                 SlideEncoding.encode_tiles(patient_id, path, encoder_path, device)
+                encoding_times.append((patient_id, time.process_time()-start_cpu_time,time.time()-start_user_time))
+            else:
+                encoding_times.append((patient_id,-1, -1))
 
         patient_files_encoded(patient_path)
+        Reports.summary_report_update_encoding(encoding_times)
 
     # # write summary and error report
     # global summary, errors
