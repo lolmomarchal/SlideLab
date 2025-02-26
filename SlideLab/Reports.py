@@ -27,6 +27,8 @@ class Reports:
         self.error_report()
 
     def summary_report(self):
+        if not self.summary[0]:
+            return
         columns = ["sample_id", "path", "total_tiles", "tiles_passing_tissue_thresh", "non_blurry_tiles",
                    "time_masking_cpu", "time_obtaining_valid_coordinates_cpu",
                    "time_patching_tiles_cpu", "time_masking_user", "time_obtaining_valid_coordinates_user",
