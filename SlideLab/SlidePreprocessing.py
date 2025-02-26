@@ -616,7 +616,7 @@ def main():
                 encoding_times.append((patient_id,-1, -1))
 
         patient_files_encoded(patient_path)
-        report_instance = Reports([], [], output_path)
+        report_instance = Reports.Reports([], [], output_path)
         report_instance.summary_report_update_encoding(encoding_times)
 
     # # write summary and error report
