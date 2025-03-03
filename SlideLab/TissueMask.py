@@ -39,7 +39,9 @@ class TissueMask:
     """
 
     def __init__(self, slide, masks=None, result_path=None,
-                 threshold=0.8, SCALE=64):
+                 threshold=0.8, SCALE=64, red_pen_thresh = 0.4, blue_pen_thresh = 0.4):
+        self.red_pen_thresh =red_pen_thresh
+        self.blue_pen_thresh = blue_pen_thresh
         self.slide = openslide.OpenSlide(slide) if isinstance(slide, str) else slide
         self.SCALE = SCALE or int(self.slide.level_downsamples[-1])
         self.thumbnail = np.array(
@@ -57,7 +59,7 @@ class TissueMask:
         Returns:
             Metadata Dictionary
         """
-        return {"slide": self.slide, "masks_list used (self.mask_list)": self.masks_list, "thumbnail": self.thumbnail,
+        return {"slide": self.slide, "masks_list": self.masks_list, "thumbnail": self.thumbnail,
                 "save path": self.result_path, "scale": self.SCALE, "mask": self.mask,
                 "mask applied to original slide": self.applied}
 
@@ -168,8 +170,6 @@ class TissueMask:
             g_mask[:] = img_array[:, :, 1] < green_thresh
             b_mask[:] = img_array[:, :, 2] > blue_thresh
             combined_mask |= r_mask & g_mask & b_mask
-            if np.count_nonzero(combined_mask) > 0.8 * np.prod(combined_mask.shape):
-                break
 
         kernel = np.ones((6, 6), np.uint8)
         dilated_mask = cv2.dilate(combined_mask.astype(np.uint8), kernel, iterations=1)
@@ -199,7 +199,7 @@ class TissueMask:
         true_percentage = np.count_nonzero(pen_mask.astype(np.uint8)) / np.count_nonzero(self.otsu)
 
         # Check if the percentage exceeds 20%
-        if true_percentage > 0.2:
+        if true_percentage > self.blue_pen_thresh:
             return ~np.zeros_like(pen_mask, dtype=np.uint8)
 
         # print(f"blue pen  {time.process_time()-start}")
@@ -224,9 +224,6 @@ class TissueMask:
             b_mask[:] = img_array[:, :, 2] < blue_thresh
 
             combined_mask |= r_mask & g_mask & b_mask
-
-            if np.count_nonzero(combined_mask) > 0.8 * np.prod(combined_mask.shape):
-                break
 
         kernel = np.ones((3, 3), np.uint8)
         dilated_mask = cv2.dilate(combined_mask.astype(np.uint8), kernel, iterations=1)
@@ -270,7 +267,7 @@ class TissueMask:
         true_percentage = np.count_nonzero(pen_mask.astype(np.uint8)) / np.count_nonzero(self.otsu)
 
         # Check if the percentage exceeds 20%
-        if true_percentage > 0.2:
+        if true_percentage > self.red_pen_thresh:
             return ~np.zeros_like(pen_mask, dtype=np.uint8)
 
         # print(f"red pen  {time.process_time()-start}")

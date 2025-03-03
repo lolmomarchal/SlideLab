@@ -46,24 +46,23 @@ within the WSI file.
 summary = []
 errors = []
 
+
 ############### post processing ##############
 
 def filter_patients(patient_df, summary_df, args):
-    patient_df = pd.read_csv(patient_df)
+    # patient_df = pd.read_csv(patient_df)
     summary_df = pd.read_csv(summary_df)
     if not args.remove_blurry_tiles:
         column = "tiles_passing_tissue_thresh"
     else:
         column = "non_blurry_tiles"
-    not_passing_QC = []
-    for i, row in summary_df.iterrows():
-        if row[column] < args.min_tiles:
-            not_passing_QC.append(row["sample_id"])
+    not_passing_QC = summary_df.loc[summary_df[column] < args.min_tiles, "sample_id"]
     # filter based on sample ID
-    filtered_patients = patient_df[~patient_df["sample_id"].isin(not_passing_QC)]
+    filtered_patients = patient_df[~patient_df["Patient ID"].isin(not_passing_QC)]
     filtered_path = os.path.join(args.output_path, "filtered_patients.csv")
-    filtered_patients.to_csv(filtered_path, index = False)
-        
+    filtered_patients.to_csv(filtered_path, index=False)
+
+
 def preprocess_patient(row, device, encoder_path, args):
     result = row["Preprocessing Path"]
     original = row["Original Slide Path"]
@@ -85,11 +84,11 @@ def extract_diagnosis(ID):
 
 def patient_files_encoded(patient_files_path):
     df = pd.read_csv(patient_files_path)
+    df["Encoded Path"] = [""]*len(df)
+    df["Encoded Path"] = df["Encoded Path"].astype("object")
     for i, row in df.iterrows():
-        #         label = extract_diagnosis(row["Patient ID"])
         encoded_path = os.path.join(os.path.dirname(row["Preprocessing Path"]), "encoded", row["Patient ID"] + ".h5")
-        #         df.loc[i, "target"] = label
-        df.loc[i, "Encoded Path"] = encoded_path
+        df.loc[i, "Encoded Path"] = str(encoded_path)
     df.to_csv(patient_files_path)
 
 
@@ -152,7 +151,6 @@ def tile_slide_normalize_blurry_image(coord, desired_size, adjusted_size, patien
         return None, 0
     blurry, var = LaplaceFilter(tile_np)
     if not blurry:
-
         image_path = os.path.join(sample_path,
                                   f"{patient_id}_{coord[0]}_{coord[1]}_size_{desired_size}_mag_{desired_mag}.png")
         cv2.imwrite(image_path, tile_np[:, :, ::-1])
@@ -273,7 +271,8 @@ def preprocessing(path, patient_id, args):
     natural_magnification = int(slide.properties.get("openslide.objective-power", 40))
     desired_magnification = args.desired_magnification
     if natural_magnification < desired_magnification:
-        error.append((patient_id, path, "Desired magnification is higher than natural magnification", "Magnification Sanity Check"))
+        error.append((patient_id, path, "Desired magnification is higher than natural magnification",
+                      "Magnification Sanity Check"))
         summary = summary_()
         summary.append("Error")
         return summary, error
@@ -283,13 +282,14 @@ def preprocessing(path, patient_id, args):
     start_mask_user = time.time()
     start_mask_cpu = time.process_time()
     try:
-        mask, scale = TissueMask(slide, result_path=sample_path).get_mask_attributes()
+        mask, scale = TissueMask(slide, result_path=sample_path, blue_pen_thresh=args.blue_pen_check,
+                                 red_pen_thresh=args.red_pen_check).get_mask_attributes()
     except Exception as e:
         error.append((patient_id, path, e, "Tissue Mask"))
         summary = summary_()
         summary.append("Error")
         return summary, error
-        
+
     time_mask_cpu = time.process_time() - start_mask_cpu
     time_mask = time.time() - start_mask_user
 
@@ -411,7 +411,7 @@ def preprocessing(path, patient_id, args):
         os.makedirs(QC_path, exist_ok=True)
         # choose random coordinate
         non_blurry_coords = list(zip(df_tiles['x'], df_tiles['y']))
-        random_coord = non_blurry_coords[random.randint(0, len(non_blurry_coords)-1)]
+        random_coord = non_blurry_coords[random.randint(0, len(non_blurry_coords) - 1)]
         region = slide.read_region((random_coord[0], random_coord[1]), 0, (adjusted_size, adjusted_size)).convert(
             'RGB').resize(
             (desired_size, desired_size), Image.BILINEAR)
@@ -431,8 +431,9 @@ def preprocessing(path, patient_id, args):
             if different_coords:
                 i = 0
                 while True or i < 5:
-                    random_coord = different_coords[random.randint(0, len(different_coords)-1)]
-                    region = slide.read_region((random_coord[0], random_coord[1]), 0, (adjusted_size, adjusted_size)).convert(
+                    random_coord = different_coords[random.randint(0, len(different_coords) - 1)]
+                    region = slide.read_region((random_coord[0], random_coord[1]), 0,
+                                               (adjusted_size, adjusted_size)).convert(
                         'RGB').resize(
                         (desired_size, desired_size), Image.BILINEAR)
                     normalized_blurry = normalizeStaining(np.array(region))
@@ -450,23 +451,19 @@ def preprocessing(path, patient_id, args):
 
 def move_svs_files(main_directory):
     """
-    Used to handle directories where WSI files are stored in subdirectories (like downloading it from portal.gdc)
-    :param main_directory: directory where the WSI are stored (from the allowed file extensions from OpenSlide)
+    Recursively move all WSI files from subdirectories to the main directory.
+
+    :param main_directory: Root directory where WSI files are stored, possibly in subdirectories.
     """
-    for patient_directory in os.listdir(main_directory):
-        patient_path = os.path.join(main_directory, patient_directory)
-
-        if os.path.isdir(patient_path):
-            # look for valid files
-            for file_name in os.listdir(patient_path):
-                if file_name.endswith((
-                        ".svs", ".tif", ".tiff", ".dcm",
+    valid_extensions = (".svs", ".tif", ".tiff", ".dcm",
                         ".ndpi", ".vms", ".vmu", ".scn",
-                        ".mrxs", ".svslide", ".bif")):
-                    svs_file_path = os.path.join(patient_path, file_name)
-
-                    # move files to main directory
-                    shutil.move(svs_file_path, main_directory)
+                        ".mrxs", ".svslide", ".bif")
+    for root, _, files in os.walk(main_directory, topdown=False):
+        for file_name in files:
+            if file_name.endswith(valid_extensions):
+                file_path = os.path.join(root, file_name)
+                if root != main_directory:
+                    shutil.move(file_path, os.path.join(main_directory, file_name))
 
 
 def patient_csv(input_path, results_path):
@@ -541,23 +538,28 @@ def parse_args():
                         help="Flag to encode tiles and create associated .h5 file")
     parser.add_argument("--extract_high_quality", action="store_true",
                         help="extract high quality ")
+    parser.add_argument("--augmentations", type=int, default=0,
+                        help="augment data for training ")
 
     # thresholds
     parser.add_argument("-th", "--tissue_threshold", type=float, default=0.7,
                         help="Threshold to consider a tile as Tissue(default: %(default)s)")
     parser.add_argument("-bh", "--blur_threshold", type=float, default=0.015,
                         help="Threshold for laplace filter variance (default: %(default)s)")
-    
+    parser.add_argument("--red_pen_check", type=float, default=0.4,
+                        help="Sanity check for % of red pen detected. If above threshold, red_pen mask will be ignored(default: %(default)s)")
+    parser.add_argument("--blue_pen_check", type=float, default=0.4,
+                        help="Sanity check for % of blue pen detected,  If above threshold, blue_pen mask will be ignored(default: %(default)s)")
 
     # for devices + multithreading
     parser.add_argument("--device", default=None)
     parser.add_argument("--gpu_processes", type=int, default=1)
     parser.add_argument("--cpu_processes", type=int, default=os.cpu_count())
+    parser.add_argument("--batch_size", type=int, default=16)
 
     # QC 
-    parser.add_argument( "--min_tiles", type=float, default=0,
+    parser.add_argument("--min_tiles", type=float, default=0,
                         help="Number of tiles a patient should have.")
-    
 
     return parser.parse_args()
 
@@ -601,6 +603,7 @@ def main():
             results = preprocessing(row["Original Slide Path"], row["Patient ID"], args)
             Reports.Reports([results[0]], [results[1]], output_path)
             # results.append(preprocessing(row["Original Slide Path"], row["Patient ID"], args))
+
     # encode after all patients have been preprocessed
     encoding_times = []
     if args.encode:
@@ -610,21 +613,19 @@ def main():
             if not os.path.isfile(os.path.join(encoder_path, str(patient_id) + ".h5")) and os.path.isfile(path):
                 start_cpu_time = time.process_time()
                 start_user_time = time.time()
-                SlideEncoding.encode_tiles(patient_id, path, encoder_path, device)
-                encoding_times.append((patient_id, time.process_time()-start_cpu_time,time.time()-start_user_time))
+                SlideEncoding.encode_tiles(patient_id, path, encoder_path, device, high_qual=args.extract_high_quality,
+                                           batch_size=args.batch_size, number_of_augmentation=args.augmentations)
+                encoding_times.append((patient_id, time.process_time() - start_cpu_time, time.time() - start_user_time))
             else:
-                encoding_times.append((patient_id,-1, -1))
+                encoding_times.append((patient_id, -1, -1))
 
         patient_files_encoded(patient_path)
-        report_instance = Reports.Reports([[]], [[]], output_path)
-        report_instance.summary_report_update_encoding(encoding_times)
 
-    # # write summary and error report
-    # global summary, errors
-    # for res in results:
-    #     summary.extend(res[0])
-    #     errors.extend(res[1])
-    # Reports.Reports(summary, errors, output_path)
+    report_instance = Reports.Reports([[]], [[]], output_path)
+    report_instance.summary_report_update_encoding(encoding_times)
+
+    # filter patient_csv depending on amount of tiles
+    filter_patients(patients, os.path.join(args.output_path, "SummaryReport.csv"), args)
 
 
 if __name__ == "__main__":
