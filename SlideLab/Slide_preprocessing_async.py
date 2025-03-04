@@ -355,30 +355,49 @@ def preprocessing(path, patient_id, args):
                     try:
                         tile = torch.tensor(np.array(tile)).to("cuda", non_blocking = True)
                         norm_tile = normalizeStaining_torch(tile)
+                        torch.cuda.synchronize()
                         if norm_tile is None:
                             continue 
                         result = (coord, norm_tile.cpu())
                         await output_queue.put(result)
                     except Exception as e:
                         print(f"Error in GPU task for tile {coord}: {e}")
+            await output_queue.put(None)
                         
         # task 2: get normalized tiles + save them 
 
         # if not checking if blurry
+        stop_signals = 0
         async def save_(output_queue, output_dir, patient_id, desired_size, desired_mag, metadata_list, worker_id):
             while True:
-                coord, norm_tile = await output_queue.get()
+                item = await output_queue.get()
+                if item is None:
+                    stop_signals +=1
+                    if stop_signals == num_workers:
+                        output_queue.task_done()
+                        break
+                    continue
+                coord, norm_tile = item
                 metadata = save_tiles(coord, norm_tile, output_dir, patient_id, desired_size, desired_mag)
                 if metadata:
                     metadata_list.append(metadata)
+                output_queue.task_done()
                     
         # checking if blurry
         async def save_QC(output_queue, output_dir, patient_id, desired_size, desired_mag, metadata_list, worker_id, threshold):
             while True:
-                coord, norm_tile = await output_queue.get()
+                item = await output_queue.get()
+                if item is None:
+                    stop_signals +=1
+                    if stop_signals == num_workers:
+                        output_queue.task_done()
+                        break
+                    continue
+                coord, norm_tile = item
                 metadata = save_tiles_QC(coord, norm_tile, sample_path, patient_id, desired_size, desired_mag, threshold)
                 if metadata:
                     metadata_list.append(metadata)
+                output_queue.task_done()
         # chunk iterator
         output_queue = asyncio.Queue()
         chunk_tiles = chunk_iterator(tile_iterator, num_workers)
