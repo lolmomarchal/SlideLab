@@ -369,6 +369,7 @@ def preprocessing(path, patient_id, args):
         # if not checking if blurry
         stop_signals = 0
         async def save_(output_queue, output_dir, patient_id, desired_size, desired_mag, metadata_list, worker_id):
+            nonlocal stop_signals
             while True:
                 item = await output_queue.get()
                 if item is None:
