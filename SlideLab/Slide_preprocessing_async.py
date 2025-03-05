@@ -409,11 +409,12 @@ def preprocessing(path, patient_id, args):
         asyncio.run(process())  # Run everything
             # while not end_event.is_set():
             #     wait = True
-        
+        print(f"length of metadatlist: {len(metadalist)}")
 
         df_tiles = pd.DataFrame(metadata_list)
         df_tiles["original_mag"] = natural_magnification
         df_tiles["scale"] = scale
+        print(df)
         df_tiles.to_csv(tiles_path, index=False)
         blurry_tiles = len(metadata_list) if args.remove_blurry_tiles else None
 
