@@ -106,22 +106,18 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=51
                 features = encoder_hq(images).squeeze(-1).squeeze(-1).cpu()
                 high_qual_all.append(features.numpy())
 
-    # Cleanup
     del encoder_, tile_dataset, data_loader
     gc.collect()
     torch.cuda.empty_cache()
 
-    # Read magnification and size
     df = pd.read_csv(tile_path)
     mag = df["desired_magnification"].to_numpy(dtype=np.float32)
     size = df["desired_size"].to_numpy(dtype=np.float32)
 
-    # Convert features
     all_features = np.concatenate(all_features, axis=0).astype(np.float32)
     all_x = np.array(all_x, dtype=np.float32)
     all_y = np.array(all_y, dtype=np.float32)
 
-    # Save results
     result_path = os.path.join(result_path, f"{patient_id}.h5")
     with h5py.File(result_path, "w") as hdf:
         hdf.create_dataset("tile_path", data=np.array(all_tile_paths, dtype="S"))
