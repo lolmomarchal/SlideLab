@@ -329,105 +329,81 @@ def preprocessing(path, patient_id, args):
     # Step 3: get tiles (separated into 2 different processes depending if available gpu or not)
 
     if device == "cuda":
-        metadata_list = []
-        tile_iterator = TileIterator(slide, coordinates=coordinates, mask=mask, normalizer=None, size=desired_size,
-                                     magnification=desired_magnification, adjusted_size=adjusted_size, overlap=overlap)
-
-        num_cuda_streams = 6
-        num_workers = os.cpu_count()//2
-        num_workers_task2 = os.cpu_count()-num_workers
+            metadata_list = []
+        tile_iterator = TileIterator(
+            slide, coordinates=coordinates, mask=mask, normalizer=None, 
+            size=desired_size, magnification=desired_magnification, 
+            adjusted_size=adjusted_size, overlap=overlap
+        )
+    
+        num_cuda_streams = max_workers // 2  # Half for loading, half for saving
         cuda_streams = [torch.cuda.Stream() for _ in range(num_cuda_streams)]
-
-        import itertools
-        # chunk iterator before task
+    
+        async_queue = asyncio.Queue()  # Async queue for saving
+    
         def chunk_iterator(iterator, num_workers):
-            chunked = [[] for _ in range(num_workers)]
-            for idx in range(len(iterator)):
-                chunked[idx % num_workers].append(idx)
-            return chunked
-            
-        # task 1: load tiles + send them to gpu for normalization 
-        async def load_submit_gpu(tiles_chunk, iterator, output_queue, worker_id):            
+            """ Distribute tile indices evenly among workers. """
+            return [list(range(i, len(iterator), num_workers)) for i in range(num_workers)]
+    
+        async def async_save_worker(output_dir, patient_id, desired_size, desired_mag, blur_threshold=None):
+            """ Asynchronously saves tiles as soon as they arrive in the queue. """
+            while True:
+                item = await async_queue.get()
+                if item is None:  # Stop signal
+                    break
+                
+                coord, norm_tile = item
+                if blur_threshold is not None:
+                    metadata = save_tiles_QC(coord, norm_tile, output_dir, patient_id, desired_size, desired_mag, blur_threshold)
+                else:
+                    metadata = save_tiles(coord, norm_tile, output_dir, patient_id, desired_size, desired_mag)
+                
+                if metadata:
+                    metadata_list.append(metadata)
+    
+        def load_normalize(tiles_chunk, iterator, worker_id):
+            """ Loads & normalizes tiles, then pushes them to the async queue for saving. """
+            stream = cuda_streams[worker_id % num_cuda_streams]
             for index in tiles_chunk:
-                coord, tile = iterator[index]
-                stream = cuda_streams[worker_id % num_cuda_streams]
-                with torch.cuda.stream(stream):
+                tile, coord = iterator[index]
+                with torch.cuda.stream(stream):  
                     try:
-                        tile = torch.tensor(np.array(tile)).to("cuda", non_blocking = True)
-                        norm_tile = normalizeStaining_torch(tile)
-                        torch.cuda.synchronize()
-                        if norm_tile is None:
-                            continue 
-                        result = (coord, norm_tile.cpu())
-                        await output_queue.put(result)
+                        tile_tensor = torch.from_numpy(tile).to("cuda", non_blocking=True) if isinstance(tile, np.ndarray) else tile.to("cuda", non_blocking=True)
+                        norm_tile = normalizeStaining_torch(tile_tensor)
+                        if norm_tile is not None:
+                            asyncio.run(async_queue.put((coord, norm_tile)))  # Push to async queue
                     except Exception as e:
-                        print(f"Error in GPU task for tile {coord}: {e}")
-            await output_queue.put(None)
-                        
-        # task 2: get normalized tiles + save them 
-
-        # if not checking if blurry
-        stop_signals = 0
-        async def save_(output_queue, output_dir, patient_id, desired_size, desired_mag, metadata_list, worker_id):
-            nonlocal stop_signals
-            while True:
-                item = await output_queue.get()
-                if item is None:
-                    stop_signals +=1
-                    if stop_signals == num_workers:
-                        output_queue.task_done()
-                        break
-                    continue
-                coord, norm_tile = item
-                metadata = save_tiles(coord, norm_tile, output_dir, patient_id, desired_size, desired_mag)
-                if metadata:
-                    metadata_list.append(metadata)
-                output_queue.task_done()
-                    
-        # checking if blurry
-        async def save_QC(output_queue, output_dir, patient_id, desired_size, desired_mag, metadata_list, worker_id, threshold):
-            while True:
-                item = await output_queue.get()
-                if item is None:
-                    stop_signals +=1
-                    if stop_signals == num_workers:
-                        output_queue.task_done()
-                        break
-                    continue
-                coord, norm_tile = item
-                metadata = save_tiles_QC(coord, norm_tile, sample_path, patient_id, desired_size, desired_mag, threshold)
-                if metadata:
-                    metadata_list.append(metadata)
-                output_queue.task_done()
-        # chunk iterator
-        output_queue = asyncio.Queue()
-        chunk_tiles = chunk_iterator(tile_iterator, num_workers)
-        async def norm(event):
-            task1_workers = [asyncio.create_task(load_submit_gpu(chunk_tiles [i], tile_iterator, output_queue,i)) for i in range(num_workers)  ]
-            task2_workers = [ asyncio.create_task(save_(output_queue, sample_path, patient_id, desired_size, desired_magnification, metadata_list, i))
-                             for i in range(num_workers_task2)   
-            ]
-            await asyncio.gather(*task1_workers, *task2_workers)
-            await asyncio.sleep(2)
-            event.set()
-            print(f"Metadata collected: {metadata_list}")
-        async def norm_blurr(event):
-            task1_workers = [asyncio.create_task(load_submit_gpu(chunk_tiles [i], tile_iterator, output_queue,i)) for i in range(num_workers)                
-            ]
-            task2_workers = [ asyncio.create_task(save_QC(output_queue, sample_path, patient_id, desired_size, desired_magnification, metadata_list, i))
-                             for i in range(num_workers_task2)   
-            ]
-            await asyncio.gather(*task1_workers, *task2_workers)
-            await asyncio.sleep(2)
-            print(f"Metadata collected: {metadata_list}")
-            event.set()
-        end_event = asyncio.Event()
-        if args.normalize_staining and not args.remove_blurry_tiles:
-            asyncio.run(norm(end_event))
-        else:
-             asyncio.run(norm_blurr(end_event))
-        # while not end_event.is_set():
-        #     wait = True
+                        print(f"Error in GPU task {worker_id} for tile {coord}: {e}")
+    
+        async def process():
+            """ Manages GPU processing & async saving in parallel. """
+            chunked_tiles = chunk_iterator(tile_iterator, num_cuda_streams)
+            
+            # Start async saving process
+            save_task = asyncio.create_task(
+                async_save_worker(sample_path, patient_id, desired_size, desired_magnification, args.blur_threshold if args.remove_blurry_tiles else None)
+            )
+    
+            # Start GPU processing in separate threads
+            gpu_threads = []
+            for i in range(num_cuda_streams):
+                t = threading.Thread(target=load_normalize, args=(chunked_tiles[i], tile_iterator, i))
+                t.start()
+                gpu_threads.append(t)
+    
+            # Wait for all GPU workers to finish
+            for t in gpu_threads:
+                t.join()
+    
+            # Signal async saver to stop
+            await async_queue.put(None)
+            await save_task  # Ensure saving finishes
+    
+            print(f"Processed {len(metadata_list)} tiles.")
+    
+        asyncio.run(process())  # Run everything
+            # while not end_event.is_set():
+            #     wait = True
         
 
         df_tiles = pd.DataFrame(metadata_list)
