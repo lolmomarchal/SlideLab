@@ -81,15 +81,19 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=51
             all_y.extend(y.numpy())
             all_tile_paths.extend(tile_paths)
             images = images.to(device, non_blocking=True)
-
-            # Reshape for feature extraction
-            batch_size, num_versions, C, H, W = images.shape
-            stacked_images = images.view(-1, C, H, W)
-
-            features = encoder_(stacked_images).squeeze(-1).squeeze(
-                -1)
-            features = features.view(batch_size, num_versions, -1).cpu().numpy()
-
+    
+            # Check if there are augmentations
+            if images.ndimension() == 4:  # Non-augmented case: [batch_size, C, H, W]
+                batch_size, C, H, W = images.shape
+                features = encoder_(images).squeeze(-1).squeeze(-1)
+                features = features.cpu().numpy()
+    
+            else:  # Augmented case: [batch_size, num_versions, C, H, W]
+                batch_size, num_versions, C, H, W = images.shape
+                stacked_images = images.view(-1, C, H, W)
+                features = encoder_(stacked_images).squeeze(-1).squeeze(-1)
+                features = features.view(batch_size, num_versions, -1).cpu().numpy()
+    
             all_features.append(features)
 
     if high_qual:
