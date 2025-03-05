@@ -406,7 +406,7 @@ def preprocessing(path, patient_id, args):
         # Wait for all saving processes to finish
         for p in save_processes:
             p.join()
-        if isintance(metadata_list[0], tuple):
+        if isinstance(metadata_list[0], tuple):
             metadata_list, scale_values = zip(*metadata_list)
         final  = [item for item in metadata_list if item is not None]
 
