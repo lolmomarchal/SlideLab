@@ -372,7 +372,8 @@ def preprocessing(path, patient_id, args):
             nonlocal stop_signals
             while True:
                 item = save_queue.get()
-                if item is None:  # Stop signal
+                if item is None: 
+                    print(stop_signals)# Stop signal
                     stop_signals += 1
                     if stop_signals == num_gpu_workers:
                         break
