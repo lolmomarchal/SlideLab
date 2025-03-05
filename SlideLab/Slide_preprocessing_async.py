@@ -357,10 +357,10 @@ def preprocessing(path, patient_id, args):
                 
                 coord, norm_tile = item
                 if blur_threshold is not None:
-                     print("saving")
+                    print("saving")
                     metadata = save_tiles_QC(coord, norm_tile, output_dir, patient_id, desired_size, desired_mag, blur_threshold)
                 else:
-                     print("saving")
+                    print("saving")
                     metadata = save_tiles(coord, norm_tile, output_dir, patient_id, desired_size, desired_mag)
                 
                 if metadata:
