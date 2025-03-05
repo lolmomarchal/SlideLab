@@ -382,33 +382,30 @@ def preprocessing(path, patient_id, args):
                     print(f"Error saving tile {coord}: {e}")
         chunked_tiles = chunk_iterator(tile_iterator, num_gpu_workers)
 
-        # Start GPU processing in separate threads
         gpu_threads = []
         for i in range(num_gpu_workers):
             t = threading.Thread(target=load_normalize, args=(chunked_tiles[i], tile_iterator, i))
             t.start()
             gpu_threads.append(t)
 
-        # Start saving processes
         save_processes = []
         for _ in range(num_saving_workers):
             p = multiprocessing.Process(target=save_worker, args=(os.path.join(sample_path, "tiles"), patient_id, desired_size, desired_magnification, args.blur_threshold if args.remove_blurry_tiles else None))
             p.start()
             save_processes.append(p)
 
-        # Wait for all GPU workers to finish
         for t in gpu_threads:
             t.join()
 
         for _ in range(num_saving_workers):
             save_queue.put(None)
 
-        # Wait for all saving processes to finish
         for p in save_processes:
             p.join()
         if isinstance(metadata_list[0], tuple):
-            metadata_list, scale_values = zip(*metadata_list)
+            metadata_list, vars = zip(*metadata_list)
         final  = [item for item in metadata_list if item is not None]
+        vars = [item for item in vars if item is not None]
 
         # print(metadata_list)
 
