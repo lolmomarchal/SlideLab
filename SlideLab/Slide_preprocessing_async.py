@@ -352,7 +352,6 @@ def preprocessing(path, patient_id, args):
             """ Loads & normalizes tiles, then pushes them to the multiprocessing queue. """
             stream = cuda_streams[worker_id % num_gpu_workers]
             for index in tiles_chunk:
-                print("normalizing")
                 tile, coord = iterator[index]
                 with torch.cuda.stream(stream):  
                     try:
