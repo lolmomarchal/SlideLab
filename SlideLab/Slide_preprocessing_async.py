@@ -366,10 +366,10 @@ def preprocessing(path, patient_id, args):
                         print(f"Error in GPU task {worker_id} for tile {coord}: {e}")
             
             save_queue.put(None)  # Signal completion
-    
+        stop_signals = 0
         def save_worker(output_dir, patient_id, desired_size, desired_mag, blur_threshold=None):
             """ Background process for saving tiles from queue. """
-            stop_signals = 0
+            nonlocal stop_signals
             while True:
                 item = save_queue.get()
                 if item is None:  # Stop signal
