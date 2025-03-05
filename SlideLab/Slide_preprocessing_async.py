@@ -198,10 +198,10 @@ def save_tiles(coord, norm_tile, output_dir, patient_id, desired_size, desired_m
         return None
 
 
-def save_tiles_QC(coord, norm_tile, output_dir, patient_id, desired_size, desired_mag):
+def save_tiles_QC(coord, norm_tile, output_dir, patient_id, desired_size, desired_mag, threshold):
     try:
         norm_tile = norm_tile.numpy()
-        blurry, var = LaplaceFilter(norm_tile)
+        blurry, var = LaplaceFilter(norm_tile,var_threshold = threshold)
         if not blurry:
             file_path = os.path.join(output_dir,
                                      f"{patient_id}_{coord[0]}_{coord[1]}_size_{desired_size}_mag_{desired_mag}.png")
