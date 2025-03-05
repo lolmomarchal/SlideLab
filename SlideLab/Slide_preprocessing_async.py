@@ -310,8 +310,7 @@ def preprocessing(path, patient_id, args):
     time_coordinates = time.time() - start_time_coordinates_user
     total_tiles = all_coords
     valid_tiles = valid_coordinates
-    print("got candidates")
-
+  
     # setting up process information
     if args.cpu_processes is None or args.cpu_processes > os.cpu_count():
         max_workers = os.cpu_count()
@@ -332,7 +331,6 @@ def preprocessing(path, patient_id, args):
     # Step 3: get tiles (separated into 2 different processes depending if available gpu or not)
 
     if device == "cuda":
-        print("tiling")
         metadata_list = multiprocessing.Manager().list()  # Shared list across processes
         tile_iterator = TileIterator(
             slide, coordinates=coordinates, mask=mask, normalizer=None, 
@@ -375,10 +373,8 @@ def preprocessing(path, patient_id, args):
                 coord, norm_tile = item
                 try:
                     if blur_threshold is not None:
-                        print("saving")
                         metadata = save_tiles_QC(coord, norm_tile, output_dir, patient_id, desired_size, desired_mag, blur_threshold)
                     else:
-                        print("saving")
                         metadata = save_tiles(coord, norm_tile, output_dir, patient_id, desired_size, desired_mag)
                     
                     if metadata:
@@ -412,23 +408,15 @@ def preprocessing(path, patient_id, args):
         # Wait for all saving processes to finish
         for p in save_processes:
             p.join()
-        print("done")
-    
-        print(f"length of metadatlist: {len(metadata_list)}")
+        
         metadata_list, scale_values = zip(*metadata_list)
         final  = [item for item in metadata_list if item is not None]
-        for i, item in enumerate(metadata_list):
-            if not isinstance(item, dict):
-                print(f"Item {i} is not a dictionary: {item}")
-        print(type(final))
 
         # print(metadata_list)
 
         df_tiles = pd.DataFrame(list(final))
         df_tiles["original_mag"] = natural_magnification
         df_tiles["scale"] = scale
-        print("df")
-        print(df_tiles)
         df_tiles.to_csv(tiles_path, index=False)
         blurry_tiles = len(metadata_list) if args.remove_blurry_tiles else None
 
