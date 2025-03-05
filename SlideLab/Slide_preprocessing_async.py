@@ -412,6 +412,7 @@ def preprocessing(path, patient_id, args):
         # Wait for all saving processes to finish
         for p in save_processes:
             p.join()
+        print("done")
     
         print(f"length of metadatlist: {len(metadata_list)}")
         metadata_list, scale_values = zip(*metadata_list)
