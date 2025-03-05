@@ -367,7 +367,6 @@ def preprocessing(path, patient_id, args):
             
         def save_worker(output_dir, patient_id, desired_size, desired_mag, blur_threshold=None):
             """ Background process for saving tiles from queue. """
-            nonlocal stop_signals
             while True:
                 item = save_queue.get()
                 if item is None: 
