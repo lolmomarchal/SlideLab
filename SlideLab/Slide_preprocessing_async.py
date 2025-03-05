@@ -415,9 +415,9 @@ def preprocessing(path, patient_id, args):
     
         print(f"length of metadatlist: {len(metadata_list)}")
         metadata_list, scale_values = zip(*metadata_list)
-        print(metadata_list)
+        # print(metadata_list)
 
-        df_tiles = pd.DataFrame(metadata_list)
+        df_tiles = pd.DataFrame(list(metadata_list))
         df_tiles["original_mag"] = natural_magnification
         df_tiles["scale"] = scale
         print("df")
