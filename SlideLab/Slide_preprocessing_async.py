@@ -392,7 +392,7 @@ def preprocessing(path, patient_id, args):
         # Start saving processes
         save_processes = []
         for _ in range(num_saving_workers):
-            p = multiprocessing.Process(target=save_worker, args=(sample_path, patient_id, desired_size, desired_magnification, args.blur_threshold if args.remove_blurry_tiles else None))
+            p = multiprocessing.Process(target=save_worker, args=(os.path.join(sample_path, "tiles"), patient_id, desired_size, desired_magnification, args.blur_threshold if args.remove_blurry_tiles else None))
             p.start()
             save_processes.append(p)
 
