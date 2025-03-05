@@ -353,10 +353,11 @@ def preprocessing(path, patient_id, args):
             """ Loads & normalizes tiles, then pushes them to the multiprocessing queue. """
             stream = cuda_streams[worker_id % num_gpu_workers]
             for index in tiles_chunk:
+                print("normalizing")
                 tile, coord = iterator[index]
                 with torch.cuda.stream(stream):  
                     try:
-                        tile_tensor = torch.tensor(tile).to("cuda", non_blocking=True)
+                        tile_tensor = torch.tensor(np.array(tile)).to("cuda", non_blocking=True)
                         norm_tile = normalizeStaining_torch(tile_tensor)
                         if norm_tile is not None:
                             save_queue.put((coord, norm_tile))  # Push to saving queue
@@ -379,14 +380,16 @@ def preprocessing(path, patient_id, args):
                 coord, norm_tile = item
                 try:
                     if blur_threshold is not None:
+                        print("saving")
                         metadata = save_tiles_QC(coord, norm_tile, output_dir, patient_id, desired_size, desired_mag, blur_threshold)
                     else:
+                        print("saving")
                         metadata = save_tiles(coord, norm_tile, output_dir, patient_id, desired_size, desired_mag)
                     
                     if metadata:
                         metadata_list.append(metadata)
                 except Exception as e:
-                print(f"Error saving tile {coord}: {e}")
+                    print(f"Error saving tile {coord}: {e}")
         chunked_tiles = chunk_iterator(tile_iterator, num_gpu_workers)
 
         # Start GPU processing in separate threads
