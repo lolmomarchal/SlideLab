@@ -308,6 +308,7 @@ def preprocessing(path, patient_id, args):
     time_coordinates = time.time() - start_time_coordinates_user
     total_tiles = all_coords
     valid_tiles = valid_coordinates
+    print("got candidates")
 
     # setting up process information
     if args.cpu_processes is None or args.cpu_processes > os.cpu_count():
