@@ -409,7 +409,7 @@ def preprocessing(path, patient_id, args):
         asyncio.run(process())  # Run everything
             # while not end_event.is_set():
             #     wait = True
-        print(f"length of metadatlist: {len(metadalist)}")
+        print(f"length of metadatlist: {len(metadata_list)}")
 
         df_tiles = pd.DataFrame(metadata_list)
         df_tiles["original_mag"] = natural_magnification
