@@ -340,7 +340,7 @@ def preprocessing(path, patient_id, args):
             adjusted_size=adjusted_size, overlap=overlap
         )
     
-        num_gpu_workers = max_workers // 2  # Half for normalization
+        num_gpu_workers = max_workers // 3  # Half for normalization
         num_saving_workers = max_workers - num_gpu_workers  # Half for saving
         cuda_streams = [torch.cuda.Stream() for _ in range(num_gpu_workers)]
         
@@ -405,9 +405,9 @@ def preprocessing(path, patient_id, args):
         for t in gpu_threads:
             t.join()
 
-        # Send stop signals to saving workers
         for _ in range(num_saving_workers):
             save_queue.put(None)
+            print("put in None")
 
         # Wait for all saving processes to finish
         for p in save_processes:
