@@ -402,7 +402,6 @@ def preprocessing(path, patient_id, args):
 
         for _ in range(num_saving_workers):
             save_queue.put(None)
-            print("put in None")
 
         # Wait for all saving processes to finish
         for p in save_processes:
