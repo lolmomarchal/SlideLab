@@ -10,9 +10,10 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision.io import read_image
 import torchvision.transforms as transforms
 import gc
+import math
 
 torch.backends.cudnn.benchmark = True
-torch.backends.cuda.matmul.allow_tf32 = True
+# torch.backends.cuda.matmul.allow_tf32 = True
 
 
 def encoder(encoder_type="resnet50", device="cpu"):
@@ -61,13 +62,11 @@ class TilePreprocessing(Dataset):
 # Warning: Reduce batch_size when using augmentations
 def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=512, encoder_model="resnet50",
                  high_qual=False, number_of_augmentation=0):
-    # Set device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # Get encoder
     encoder_ = encoder(encoder_type=encoder_model, device=device)
-
-    # Load dataset
+    if number_of_augmentation != 0:
+        batch_size = math.ceil(batch_size/number_of_augmentation)
     tile_dataset = TilePreprocessing(tile_path, device=device, num_augmentations=number_of_augmentation)
     all_features, all_x, all_y, all_tile_paths = [], [], [], []
     high_qual_all = []
