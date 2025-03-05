@@ -350,7 +350,6 @@ def preprocessing(path, patient_id, args):
     
         async def async_save_worker(output_dir, patient_id, desired_size, desired_mag, blur_threshold=None):
             """ Asynchronously saves tiles as soon as they arrive in the queue. """
-            print("saving")
             while True:
                 item = await async_queue.get()
                 if item is None:  # Stop signal
@@ -358,8 +357,10 @@ def preprocessing(path, patient_id, args):
                 
                 coord, norm_tile = item
                 if blur_threshold is not None:
+                     print("saving")
                     metadata = save_tiles_QC(coord, norm_tile, output_dir, patient_id, desired_size, desired_mag, blur_threshold)
                 else:
+                     print("saving")
                     metadata = save_tiles(coord, norm_tile, output_dir, patient_id, desired_size, desired_mag)
                 
                 if metadata:
@@ -367,7 +368,7 @@ def preprocessing(path, patient_id, args):
     
         def load_normalize(tiles_chunk, iterator, worker_id):
             """ Loads & normalizes tiles, then pushes them to the async queue for saving. """
-            print("normalize")
+            
             stream = cuda_streams[worker_id % num_cuda_streams]
             for index in tiles_chunk:
                 tile, coord = iterator[index]
@@ -376,6 +377,7 @@ def preprocessing(path, patient_id, args):
                         tile_tensor = torch.from_numpy(np.array(tile)).to("cuda", non_blocking=True) 
                         norm_tile = normalizeStaining_torch(tile_tensor)
                         if norm_tile is not None:
+                            print("normalize")
                             asyncio.run(async_queue.put((coord, norm_tile)))  # Push to async queue
                     except Exception as e:
                         print(f"Error in GPU task {worker_id} for tile {coord}: {e}")
@@ -414,7 +416,7 @@ def preprocessing(path, patient_id, args):
         df_tiles = pd.DataFrame(metadata_list)
         df_tiles["original_mag"] = natural_magnification
         df_tiles["scale"] = scale
-        print(df)
+        print(df_tiles)
         df_tiles.to_csv(tiles_path, index=False)
         blurry_tiles = len(metadata_list) if args.remove_blurry_tiles else None
 
