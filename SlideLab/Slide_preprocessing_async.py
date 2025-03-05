@@ -416,7 +416,7 @@ def preprocessing(path, patient_id, args):
     
         print(f"length of metadatlist: {len(metadata_list)}")
         metadata_list, scale_values = zip(*metadata_list)
-        final = [item in metadata_list if item is not None]
+        final  = [item for item in metadata_list if item is not None]
         for i, item in enumerate(metadata_list):
             if not isinstance(item, dict):
                 print(f"Item {i} is not a dictionary: {item}")
