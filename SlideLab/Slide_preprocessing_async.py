@@ -329,7 +329,8 @@ def preprocessing(path, patient_id, args):
     # Step 3: get tiles (separated into 2 different processes depending if available gpu or not)
 
     if device == "cuda":
-            metadata_list = []
+        print("tiling")
+        metadata_list = []
         tile_iterator = TileIterator(
             slide, coordinates=coordinates, mask=mask, normalizer=None, 
             size=desired_size, magnification=desired_magnification, 
@@ -347,6 +348,7 @@ def preprocessing(path, patient_id, args):
     
         async def async_save_worker(output_dir, patient_id, desired_size, desired_mag, blur_threshold=None):
             """ Asynchronously saves tiles as soon as they arrive in the queue. """
+            print("saving")
             while True:
                 item = await async_queue.get()
                 if item is None:  # Stop signal
@@ -363,12 +365,13 @@ def preprocessing(path, patient_id, args):
     
         def load_normalize(tiles_chunk, iterator, worker_id):
             """ Loads & normalizes tiles, then pushes them to the async queue for saving. """
+            print("normalize")
             stream = cuda_streams[worker_id % num_cuda_streams]
             for index in tiles_chunk:
                 tile, coord = iterator[index]
                 with torch.cuda.stream(stream):  
                     try:
-                        tile_tensor = torch.from_numpy(tile).to("cuda", non_blocking=True) if isinstance(tile, np.ndarray) else tile.to("cuda", non_blocking=True)
+                        tile_tensor = torch.from_numpy(np.array(tile)).to("cuda", non_blocking=True) 
                         norm_tile = normalizeStaining_torch(tile_tensor)
                         if norm_tile is not None:
                             asyncio.run(async_queue.put((coord, norm_tile)))  # Push to async queue
