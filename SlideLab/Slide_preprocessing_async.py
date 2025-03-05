@@ -416,14 +416,15 @@ def preprocessing(path, patient_id, args):
     
         print(f"length of metadatlist: {len(metadata_list)}")
         metadata_list, scale_values = zip(*metadata_list)
+        final = [item in metadata_list if not None]
         for i, item in enumerate(metadata_list):
             if not isinstance(item, dict):
                 print(f"Item {i} is not a dictionary: {item}")
-        print(type(metadata_list))
+        print(type(final))
 
         # print(metadata_list)
 
-        df_tiles = pd.DataFrame(list(metadata_list))
+        df_tiles = pd.DataFrame(list(final))
         df_tiles["original_mag"] = natural_magnification
         df_tiles["scale"] = scale
         print("df")
