@@ -412,87 +412,9 @@ def preprocessing(path, patient_id, args):
         # Wait for all saving processes to finish
         for p in save_processes:
             p.join()
-
-
-        # tile_iterator = TileIterator(
-        #     slide, coordinates=coordinates, mask=mask, normalizer=None, 
-        #     size=desired_size, magnification=desired_magnification, 
-        #     adjusted_size=adjusted_size, overlap=overlap
-        # )
     
-        # num_cuda_streams = max_workers // 2  # Half for loading, half for saving
-        # cuda_streams = [torch.cuda.Stream() for _ in range(num_cuda_streams)]
-    
-        # async_queue = asyncio.Queue()  # Async queue for saving
-    
-        # def chunk_iterator(iterator, num_workers):
-        #     """ Distribute tile indices evenly among workers. """
-        #     return [list(range(i, len(iterator), num_workers)) for i in range(num_workers)]
-    
-        # async def async_save_worker(output_dir, patient_id, desired_size, desired_mag, blur_threshold=None):
-        #     """ Asynchronously saves tiles as soon as they arrive in the queue. """
-        #     while True:
-        #         item = await async_queue.get()
-        #         if item is None:  # Stop signal
-        #             break
-                
-        #         coord, norm_tile = item
-        #         if blur_threshold is not None:
-        #             print("saving")
-        #             metadata = save_tiles_QC(coord, norm_tile, output_dir, patient_id, desired_size, desired_mag, blur_threshold)
-        #         else:
-        #             print("saving")
-        #             metadata = save_tiles(coord, norm_tile, output_dir, patient_id, desired_size, desired_mag)
-                
-        #         if metadata:
-        #             metadata_list.append(metadata)
-    
-        # def load_normalize(tiles_chunk, iterator, worker_id):
-        #     """ Loads & normalizes tiles, then pushes them to the async queue for saving. """
-            
-        #     stream = cuda_streams[worker_id % num_cuda_streams]
-        #     for index in tiles_chunk:
-        #         tile, coord = iterator[index]
-        #         with torch.cuda.stream(stream):  
-        #             try:
-        #                 tile_tensor = torch.from_numpy(np.array(tile)).to("cuda", non_blocking=True) 
-        #                 norm_tile = normalizeStaining_torch(tile_tensor)
-        #                 if norm_tile is not None:
-        #                     print("normalize")
-        #                     asyncio.run(async_queue.put((coord, norm_tile)))  # Push to async queue
-        #             except Exception as e:
-        #                 print(f"Error in GPU task {worker_id} for tile {coord}: {e}")
-    
-        # async def process():
-        #     """ Manages GPU processing & async saving in parallel. """
-        #     chunked_tiles = chunk_iterator(tile_iterator, num_cuda_streams)
-            
-        #     # Start async saving process
-        #     save_task = asyncio.create_task(
-        #         async_save_worker(sample_path, patient_id, desired_size, desired_magnification, args.blur_threshold if args.remove_blurry_tiles else None)
-        #     )
-    
-        #     # Start GPU processing in separate threads
-        #     gpu_threads = []
-        #     for i in range(num_cuda_streams):
-        #         t = threading.Thread(target=load_normalize, args=(chunked_tiles[i], tile_iterator, i))
-        #         t.start()
-        #         gpu_threads.append(t)
-    
-        #     # Wait for all GPU workers to finish
-        #     for t in gpu_threads:
-        #         t.join()
-    
-        #     # Signal async saver to stop
-        #     await async_queue.put(None)
-        #     await save_task  # Ensure saving finishes
-    
-            # print(f"Processed {len(metadata_list)} tiles.")
-    
-        # asyncio.run(process())  # Run everything
-        #     # while not end_event.is_set():
-            #     wait = True
         print(f"length of metadatlist: {len(metadata_list)}")
+        metadata_list, scale_values = zip(*metadata_list)
         print(metadata_list)
 
         df_tiles = pd.DataFrame(metadata_list)
