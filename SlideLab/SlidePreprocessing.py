@@ -391,9 +391,6 @@ def preprocessing(path, patient_id, args):
                     if item[0] is not None:
                         results.append(item[0])
                     vars.append(item[1])
-
-        time_patches = time.time() - start_time_patches_user
-        time_patches_cpu = time.process_time() - start_time_patches_cpu
         results_ = [result for result in results if result]
 
         df_tiles = pd.DataFrame(results_)
@@ -402,6 +399,8 @@ def preprocessing(path, patient_id, args):
         df_tiles.to_csv(tiles_path, index=False)
         # how many removed
         blurry_tiles = len(results_) if args.remove_blurry_tiles else None
+    time_patches = time.time() - start_time_patches_user
+    time_patches_cpu = time.process_time() - start_time_patches_cpu
     summary = summary_()
     summary.append("Processed")
 
