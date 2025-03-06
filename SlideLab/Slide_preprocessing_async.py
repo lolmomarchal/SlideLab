@@ -338,18 +338,18 @@ def preprocessing(path, patient_id, args):
             adjusted_size=adjusted_size, overlap=overlap
         )
     
-        num_gpu_workers = max_workers // 3  # Half for normalization
-        num_saving_workers = max_workers - num_gpu_workers  # Half for saving
+        num_gpu_workers = max_workers // 3  
+        num_saving_workers = max_workers - num_gpu_workers  
         cuda_streams = [torch.cuda.Stream() for _ in range(num_gpu_workers)]
-        
-        save_queue = multiprocessing.Queue()  # Multiprocessing queue
+        # set up save queue 
+        save_queue = multiprocessing.Queue() 
     
         def chunk_iterator(iterator, num_workers):
             """ Distribute tile indices evenly among workers. """
             return [list(range(i, len(iterator), num_workers)) for i in range(num_workers)]
     
+       # loads + sends to cpu for normalization
         def load_normalize(tiles_chunk, iterator, worker_id):
-            """ Loads & normalizes tiles, then pushes them to the multiprocessing queue. """
             stream = cuda_streams[worker_id % num_gpu_workers]
             for index in tiles_chunk:
                 tile, coord = iterator[index]
@@ -361,9 +361,8 @@ def preprocessing(path, patient_id, args):
                             save_queue.put((coord, norm_tile))  # Push to saving queue
                     except Exception as e:
                         print(f"Error in GPU task {worker_id} for tile {coord}: {e}")
-            
+        # to save tiles
         def save_worker(output_dir, patient_id, desired_size, desired_mag, blur_threshold=None):
-            """ Background process for saving tiles from queue. """
             while True:
                 item = save_queue.get()
                 if item is None: 
