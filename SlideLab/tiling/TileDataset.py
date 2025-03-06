@@ -29,7 +29,7 @@ def get_valid_coordinates(width, height, overlap, mask, size, scale, threshold):
     return total_cords, len(valid_coords), valid_coords
 
 
-class TileIterator:
+class TileDataset(Dataset):
     def __init__(self, slide, coordinates=None, mask=None, tissue_threshold=0.8, normalizer=None, size=256,
                  magnification=20, overlap=1, adjusted_size = None):
         self.normalizer = normalizer
