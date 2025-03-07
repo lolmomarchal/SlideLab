@@ -450,7 +450,7 @@ def preprocessing(path, patient_id, args):
                 queue.task_done()
         
         # metadata_list = multiprocessing.Manager().list()  
-        queue = Queue(max_size= max_workers *2)
+        queue = Queue(maxsize= max_workers *2)
         results, vars = [], []
         tile_iterator = TileIterator(
             slide, coordinates=coordinates, mask=mask, normalizer=None, 
