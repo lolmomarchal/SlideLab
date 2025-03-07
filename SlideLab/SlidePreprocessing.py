@@ -667,9 +667,9 @@ def main():
 
     report_instance = Reports.Reports([[]], [[]], output_path)
     report_instance.summary_report_update_encoding(encoding_times)
-
-    # filter patient_csv depending on amount of tiles
-    filter_patients(patients, os.path.join(args.output_path, "SummaryReport.csv"), args)
+    if args.min_tiles >0:
+        # filter patient_csv depending on amount of tiles
+        filter_patients(patients, os.path.join(args.output_path, "SummaryReport.csv"), args)
 
 
 if __name__ == "__main__":
