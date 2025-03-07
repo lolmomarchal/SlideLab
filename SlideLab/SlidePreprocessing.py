@@ -15,8 +15,8 @@ import multiprocessing
 from concurrent.futures import ThreadPoolExecutor
 import concurrent.futures
 import random
-import asyncio
 import threading
+from queue import Queue
 
 # classes/functions
 import Reports, SlideEncoding
