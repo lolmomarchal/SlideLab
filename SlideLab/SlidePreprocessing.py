@@ -459,7 +459,7 @@ def preprocessing(path, patient_id, args):
         )
 
         threads = []
-        for _ in range(max_workers)
+        for _ in range(max_workers):
             thread = threading.Thread(target=worker, args=(queue, tile_iterator, patient_id, sample_path, results, vars), daemon=True)  
             thread.start()
             threads.append(thread)
