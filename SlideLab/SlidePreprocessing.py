@@ -333,7 +333,7 @@ def preprocessing(path, patient_id, args):
     # Step 3: get tiles (separated into 2 different processes depending if available gpu or not)
 
     if device == "cuda":
-        metadata_list = multiprocessing.Manager().list()  # Shared list across processes
+        metadata_list = multiprocessing.Manager().list()  
         tile_iterator = TileIterator(
             slide, coordinates=coordinates, mask=mask, normalizer=None, 
             size=desired_size, magnification=desired_magnification, 
@@ -419,21 +419,75 @@ def preprocessing(path, patient_id, args):
 
 
     else:
-        mult_args = [(coord, desired_size, adjusted_size, patient_id, tiles_dir, slide, desired_magnification)
-                     for coord in coordinates]
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            if not args.normalize_staining:
-                results = list(executor.map(lambda p: tile_slide_image(*p), mult_args))
-            elif args.normalize_staining and not args.remove_blurry_tiles:
-                results = list(executor.map(lambda p: tile_slide_normalize_image(*p), mult_args))
-            else:
-                results_ = list(executor.map(lambda p: tile_slide_normalize_blurry_image(*p), mult_args))
-                # need to rewrite -> should be a list of tuples
-                results = []
-                for item in results_:
-                    if item[0] is not None:
-                        results.append(item[0])
-                    vars.append(item[1])
+        def process_tile(index, tile_iterator, patient_id, sample_path, results, vars):
+                img, coord = tile_iterator[index] 
+                img_np = np.array(img)
+            
+                if args.normalize_staining:
+                    img_np = normalizeStaining(img_np)
+                    if img_np is None:
+                        return 
+                if args.remove_blurry_tiles:
+                    blurry, var = LaplaceFilter(img_np)
+                    vars.append(var)
+                    if blurry:
+                        return  
+                image_path = os.path.join(sample_path, f"{patient_id}_{coord[0]}_{coord[1]}_size_{tile_iterator.size}_mag_{tile_iterator.magnification}.png")
+                cv2.imwrite(image_path, img_np[:, :, ::-1])
+            
+                results.append({
+                    "Patient_ID": patient_id, "x": coord[0], "y": coord[1],
+                    "tile_path": image_path,  "original_size": tile_iterator.adjusted_size,
+                    "desired_size": tile_iterator.size, "desired_magnification": tile_iterator.magnification
+                })
+        # cpu worker
+        def worker(queue, tile_iterator, patient_id, sample_path, results, vars):
+            while True:
+                index = queue.get()
+                if index is None:
+                    break  
+                process_tile(index, tile_iterator, patient_id, sample_path, results, vars)
+                queue.task_done()
+        
+        # metadata_list = multiprocessing.Manager().list()  
+        queue = Queue(max_size= max_workers *2)
+        results, vars = [], []
+        tile_iterator = TileIterator(
+            slide, coordinates=coordinates, mask=mask, normalizer=None, 
+            size=desired_size, magnification=desired_magnification, 
+            adjusted_size=adjusted_size, overlap=overlap
+        )
+
+        threads = []
+        for _ in range(max_workers)
+            thread = threading.Thread(target=worker, args=(queue, tile_iterator, patient_id, sample_path, results, vars), daemon=True)  
+            thread.start()
+            threads.append(thread)
+        for idx in range(len(tile_iterator)):
+            queue.put(idx)
+        for _ in range(max_workers):
+            queue.put(None)
+        for thread in threads:
+            thread.join()
+            
+
+
+        
+            # mult_args = [(coord, desired_size, adjusted_size, patient_id, tiles_dir, slide, desired_magnification)
+        #              for coord in coordinates]
+        # with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        #     if not args.normalize_staining:
+        #         results = list(executor.map(lambda p: tile_slide_image(*p), mult_args))
+        #     elif args.normalize_staining and not args.remove_blurry_tiles:
+        #         results = list(executor.map(lambda p: tile_slide_normalize_image(*p), mult_args))
+        #     else:
+        #         results_ = list(executor.map(lambda p: tile_slide_normalize_blurry_image(*p), mult_args))
+        #         # need to rewrite -> should be a list of tuples
+        #         results = []
+        #         for item in results_:
+        #             if item[0] is not None:
+        #                 results.append(item[0])
+        #             vars.append(item[1])
 
 
         results_ = [result for result in results if result]
