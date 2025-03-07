@@ -70,29 +70,34 @@ With a size of 256 and an overlap of 2, tiles would overlap by 128 pixels.
 | `-n`, `--normalize_staining` | Normalize staining of the tiles                        | False   |
 | `-e`, `--encode`         | Encode tiles into an `.h5` file                          | False   |
 | `--extract_high_quality` | Extract  features for high quality heatmaps                          | False   |
+| `--augmentations` | Get various augmentations for encoded tiles for model training                  | 0   |
 
 ### Thresholds 
 | Argument               | Description                                          | Default |
 |-------------------------|------------------------------------------------------|---------|
 | `-th`, `--tissue_threshold` | Minimum tissue content to consider a tile valid   | 0.7     |
 | `-bh`, `--blur_threshold`   | Threshold for Laplacian filter variance (blur detection) | 0.015   |
+| `--red_pen_check`   | Sanity check for % of red pen detected. If above threshold, red_pen mask will be ignored | 0.4   |
+| `--blue_pen_check`  | Sanity check for % of red pen detected. If above threshold, blue_pen mask will be ignored | 0.4   |
 
 ### Devices and Multiprocessing 
 | Argument             | Description                          | Default           |
 |-----------------------|--------------------------------------|-------------------|
 | `--device`           | Specify device (e.g., GPU/CPU)       | None (will utilize gpu if available)             |
-| `--gpu_processes`    | Number of GPU processes to use       | 1                 |
 | `--cpu_processes`    | Number of CPU processes to use       | `os.cpu_count()`  |
+| `--batch_size`    | Number of CPU processes to use       | `16. If using augmentations batch_size will be recalculated by using # of augmentations/batch size`  |
+
+### Additional Params
+| Argument             | Description                          | Default           |
+|-----------------------|--------------------------------------|-------------------|
+| `--min_tiles`           | Minimum number of valid tiles for a sample to be counted as "valid". Will create additional filtered sample metadata file.| 0 |
 
 ### Example command 
 ```sh
 python SlidePreprocessing.py -i /path/to/input/-o /path/to/output/ \
   -s 512 -m 40 --remove_blurry_tiles --normalize_staining --encode \
-  -th 0.8 -bh 0.02 --device cuda --gpu_processes 2
-
+  -th 0.8 -bh 0.02 --device cuda --batch_size 256
 ```
-
-
 
 
 
