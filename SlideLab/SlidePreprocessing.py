@@ -403,18 +403,25 @@ def preprocessing(path, patient_id, args):
 
         for p in save_processes:
             p.join()
-        if isinstance(metadata_list[0], tuple):
-            metadata_list, vars = zip(*metadata_list)
-        final  = [item for item in metadata_list if item is not None]
-        vars = [item for item in vars if item is not None]
+        try:
+            if isinstance(metadata_list[0], tuple):
+                metadata_list, vars = zip(*metadata_list)
+            final  = [item for item in metadata_list if item is not None]
+            vars = [item for item in vars if item is not None]
 
-        # print(metadata_list)
-
-        df_tiles = pd.DataFrame(list(final))
-        df_tiles["original_mag"] = natural_magnification
-        df_tiles["scale"] = scale
-        df_tiles.to_csv(tiles_path, index=False)
-        blurry_tiles = len(metadata_list) if args.remove_blurry_tiles else None
+            # print(metadata_list)
+    
+            df_tiles = pd.DataFrame(list(final))
+            df_tiles["original_mag"] = natural_magnification
+            df_tiles["scale"] = scale
+            df_tiles.to_csv(tiles_path, index=False)
+            blurry_tiles = len(metadata_list) if args.remove_blurry_tiles else None
+        except :
+                    error.append((patient_id, path, "No tiles were saved.", "Tiling"))
+                    summary = summary_()
+                    summary.append("Error")
+                    return summary, error
+            
 
 
 
