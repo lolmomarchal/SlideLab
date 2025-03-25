@@ -11,18 +11,63 @@ from torchvision.io import read_image
 import torchvision.transforms as transforms
 import gc
 import math
+from timm.data import resolve_data_config  
+from timm.data.transforms_factory import create_transform
+import sys
 
 torch.backends.cudnn.benchmark = True
 # torch.backends.cuda.matmul.allow_tf32 = True
 
 
-def encoder(encoder_type="resnet50", device="cpu"):
+def encoder(encoder_type="resnet50", device="cpu", token = None):
     if encoder_type == "resnet50":
         encoder_model = models.resnet50(weights=ResNet50_Weights.DEFAULT)
         encoder_model = torch.nn.Sequential(*list(encoder_model.children())[:-1])
         encoder_model.eval().to(device)
         if device == "cpu":
             encoder_model = torch.quantization.quantize_dynamic(encoder_model, {torch.nn.Linear}, dtype=torch.qint8)
+    elif encoder_type == "mahmood-uni":
+        # must have valid token 
+        if token is None:
+            raise Exception("Please request access to UNI model from https://huggingface.co/MahmoodLab/UNI2-h and obtain a valid token from huggingface/profile/settings/Access Tokens")
+      
+        # download weights to environment so it only has to be done once 
+        model_path = os.path.join(sys.prefix,"model_weights", "pytorch_model.bin")
+        dir_path =  os.path.join(sys.prefix,"model_weights")
+        os.makedirs(dir_path, exist_ok = True)
+
+        if not os.path.exists(model_path):
+            try:
+                file_path = hf_hub_download(repo_id = "MahmoodLab/UNI2-h", 
+                                            filename = "pytorch_model.bin",local_dir = dir_path,  token = token, 
+                                             force_download = True)
+            except Exception as e:
+                raise Exception(f"Something went wrong when installing UNI2-h: {e}")
+        try:
+                timm_kwargs = {
+                'model_name': 'vit_giant_patch14_224',
+                'img_size': 224, 
+                'patch_size': 14, 
+                'depth': 24,
+                'num_heads': 24,
+                'init_values': 1e-5, 
+                'embed_dim': 1536,
+                'mlp_ratio': 2.66667*2,
+                'num_classes': 0, 
+                'no_embed_class': True,
+                'mlp_layer': timm.layers.SwiGLUPacked, 
+                'act_layer': torch.nn.SiLU, 
+                'reg_tokens': 8, 
+                'dynamic_img_size': True
+            }
+                model = timm.create_model(
+                pretrained=False, **timm_kwargs
+                )
+                model.load_state_dict(torch.load(model_path, map_location = "cpu"), strict = True)
+                model.eval().to(device)
+                return model 
+        except Exception as e:
+                raise Exception(f"Something went wrong when initializing UNI2-h: {e}")    
     return encoder_model
 
 
@@ -32,39 +77,42 @@ class TilePreprocessing(Dataset):
         self.data = df[["x", "y", "tile_path"]].values
         self.device = device
         self.num_augmentations = num_augmentations
+        
         self.normalize = transforms.Normalize(mean=[0.485,0.406,0.406],std=[0.229,0.224,0.225])
         self.augmentations = transforms.Compose([
+            transforms.Resize(224),
+            transforms.ToTensor(),
+            
             transforms.RandomVerticalFlip(),
             transforms.RandomRotation(180),
             transforms.ColorJitter(brightness=0.5, contrast=[0.2, 1.8], saturation=0, hue=0),
             # transforms.GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 1.5))
             self.normalize
         ])
-        self.no_augmentations = transforms.Compose([ self.normalize])
-
+        self.no_augmentations = transforms.Compose([transforms.Resize(224),
+            transforms.ToTensor(), self.normalize])
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, idx):
         x, y, tile_path = self.data[idx]
-        image = read_image(tile_path).float() / 255.0
-
+        image = Image.open(tile_path)
         if self.num_augmentations == 0:
-            return x, y, image, tile_path
+            return x, y, self.no_augmentations(image), tile_path
 
-        augmented_images = [self.augmentations(image.clone()) for _ in range(self.num_augmentations)]
-        augmented_images.insert(0, image)
+        augmented_images = [self.augmentations(image.copy()) for _ in range(self.num_augmentations)]
+        augmented_images.insert(0, self.no_augmentations(image))
         stacked_images = torch.stack(augmented_images, dim=0)
 
         return x, y, stacked_images, tile_path
 
 
-# Warning: Reduce batch_size when using augmentations
+# Warning: Reduce batch_size when using augmentations!!!!!!
 def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=512, encoder_model="resnet50",
-                 high_qual=False, number_of_augmentation=0):
+                 high_qual=False, number_of_augmentation=0, token = None):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    encoder_ = encoder(encoder_type=encoder_model, device=device)
+    encoder_ = encoder(encoder_type=encoder_model, device=device, token = token)
     if number_of_augmentation != 0:
         batch_size = math.ceil(batch_size/number_of_augmentation)
     tile_dataset = TilePreprocessing(tile_path, device=device, num_augmentations=number_of_augmentation)
@@ -81,13 +129,12 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=51
             all_tile_paths.extend(tile_paths)
             images = images.to(device, non_blocking=True)
     
-            # Check if there are augmentations
             if images.ndimension() == 4:  # Non-augmented case: [batch_size, C, H, W]
                 batch_size, C, H, W = images.shape
                 features = encoder_(images).squeeze(-1).squeeze(-1)
                 features = features.cpu().numpy()
     
-            else:  # Augmented case: [batch_size, num_versions, C, H, W]
+            else:  
                 batch_size, num_versions, C, H, W = images.shape
                 stacked_images = images.view(-1, C, H, W)
                 features = encoder_(stacked_images).squeeze(-1).squeeze(-1)
