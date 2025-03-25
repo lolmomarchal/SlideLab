@@ -555,11 +555,6 @@ def preprocessing(path, patient_id, args):
 
 
 def move_svs_files(main_directory):
-    """
-    Recursively move all WSI files from subdirectories to the main directory.
-
-    :param main_directory: Root directory where WSI files are stored, possibly in subdirectories.
-    """
     valid_extensions = (".svs", ".tif", ".tiff", ".dcm",
                         ".ndpi", ".vms", ".vmu", ".scn",
                         ".mrxs", ".svslide", ".bif")
@@ -572,13 +567,7 @@ def move_svs_files(main_directory):
 
 
 def patient_csv(input_path, results_path):
-    """
-    This method creates a csv file with important information about the patients being handled. This includes the sample ID,
-    where the original WSI is located and where the preprocessing results are located.
-    :param input_path original directory
-    :param results_path final directory
-    :returns csv file path with the preprocessing information
-    """
+
     csv_file_path = os.path.join(results_path, "patient_files.csv")
     with open(csv_file_path, 'w', newline='') as csvfile:
 
@@ -645,6 +634,10 @@ def parse_args():
                         help="extract high quality ")
     parser.add_argument("--augmentations", type=int, default=0,
                         help="augment data for training ")
+    parser.add_argument("--encoder_model", default="resnet50",
+                        help="current options: resnet50, mahmood-uni")
+    parser.add_argument("--token", default = None, help= "required to download model weights from hugging face")
+    
 
     # thresholds
     parser.add_argument("-th", "--tissue_threshold", type=float, default=0.7,
@@ -719,7 +712,7 @@ def main():
                 start_cpu_time = time.process_time()
                 start_user_time = time.time()
                 SlideEncoding.encode_tiles(patient_id, path, encoder_path, device, high_qual=args.extract_high_quality,
-                                           batch_size=args.batch_size, number_of_augmentation=args.augmentations)
+                                           batch_size=args.batch_size, number_of_augmentation=args.augmentations, encoder_model = args.encoder_model, token = args.token )
                 encoding_times.append((patient_id, time.process_time() - start_cpu_time, time.time() - start_user_time))
             else:
                 encoding_times.append((patient_id, -1, -1))
