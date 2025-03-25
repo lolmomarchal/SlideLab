@@ -11,6 +11,7 @@ from torchvision.io import read_image
 import torchvision.transforms as transforms
 import gc
 import math
+import timm
 from timm.data import resolve_data_config  
 from timm.data.transforms_factory import create_transform
 from huggingface_hub import hf_hub_download
