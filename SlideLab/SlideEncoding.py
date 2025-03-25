@@ -13,6 +13,8 @@ import gc
 import math
 from timm.data import resolve_data_config  
 from timm.data.transforms_factory import create_transform
+from huggingface_hub import hf_hub_download
+
 import sys
 
 torch.backends.cudnn.benchmark = True
