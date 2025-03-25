@@ -8,6 +8,7 @@ from torchvision import models
 from torchvision.models.resnet import ResNet50_Weights
 from torch.utils.data import Dataset, DataLoader
 from torchvision.io import read_image
+from PIL import Image
 import torchvision.transforms as transforms
 import gc
 import math
