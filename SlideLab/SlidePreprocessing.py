@@ -648,6 +648,7 @@ def parse_args():
                         help="Sanity check for % of red pen detected. If above threshold, red_pen mask will be ignored(default: %(default)s)")
     parser.add_argument("--blue_pen_check", type=float, default=0.4,
                         help="Sanity check for % of blue pen detected,  If above threshold, blue_pen mask will be ignored(default: %(default)s)")
+    parser.add_argument("--include_adipose_tissue", action = "store_true", help = "will include adipose tissue in mask")
 
     # for devices + multithreading
     parser.add_argument("--device", default=None)
