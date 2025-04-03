@@ -342,7 +342,7 @@ def preprocessing(path, patient_id, args):
     
         num_gpu_workers = max_workers // 3  
         num_saving_workers = max_workers - num_gpu_workers  
-        cuda_streams = [torch.cuda.Stream() for _ in range(num_gpu_workers)]
+        cuda_streams = [torch.cuda.Stream() for _ in range(args.batch_size)]
         # set up save queue 
         save_queue = multiprocessing.Queue() 
     
