@@ -22,7 +22,10 @@
      - [Devices and Multiprocessing](#devices-and-multiprocessing)  
      - [Additional Parameters](#additional-params)  
    - [Example Command](#example-command)  
-   - [Running Individual Classes](#to-run-individual-classes)  
+   - [Running Individual Classes](#to-run-individual-classes)
+  
+7. [Contact](#contact)
+8. [References](#references)
 
 <br clear="left"/>
 
@@ -128,8 +131,13 @@ python SlidePreprocessing.py -i /path/to/input/-o /path/to/output/ \
   -s 512 -m 40 --remove_blurry_tiles --normalize_staining --encode \
   -th 0.8 -bh 0.02 --device cuda --batch_size 256
 ```
-
-
-
 ## To run individual classes: 
-Can create related objects and use their associated methods. Please see `Example.ipynb` and  `Masking Examples.ipynb`.
+Please refer to the tutorials folder!
+
+## Contact
+For questions/requests please make an issue or email aolmomarchal@ucsd.edu under the subject "SlideLab: [insert question]"
+
+## References 
+1. M. Macenko et al., "A method for normalizing histology slides for quantitative analysis," 2009 IEEE International Symposium on Biomedical Imaging: From Nano to Macro, Boston, MA, USA, 2009, pp. 1107-1110, doi: 10.1109/ISBI.2009.5193250.
+2. Barbano, C. A., & Pedersen, A. (2022, August). EIDOSLAB/torchstain: v1.2.0-stable (Version v1.2.0-stable) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.6979540
+3. Chen, R.J., Ding, T., Lu, M.Y., Williamson, D.F.K., et al. Towards a general-purpose foundation model for computational pathology. Nat Med (2024). https://doi.org/10.1038/s41591-024-02857-3
