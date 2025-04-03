@@ -42,7 +42,13 @@ This script performs Whole Slide Image (WSI) preprocessing, including masking, t
 # Preprocessing Steps
 
 ### Masking
-![image](https://github.com/lolmomarchal/SlideLab/assets/114376800/2c4c98fd-a6ae-40c0-8e9a-5f9d88404e92)
+SlideLab uses several methods to filter out artifacts such as pen marks and blots from slides and segment tissue sections according to adjustable threshold. Thresholds like the tissue percentage in a tile is used to select candidate tiles and can be adjusted. To see parameters associated with masking refer to [masking params](#Thresholds)
+
+<img src="https://github.com/user-attachments/assets/1542dfdc-9092-4722-bb7f-b384f32c9105" alt="Image 1" width="500" height="300">
+<img src="https://github.com/user-attachments/assets/094332ae-ec20-47c5-a08c-92af1568adf0" alt="Image 2" width="500" height="300">
+<img src="https://github.com/user-attachments/assets/51e1883e-f2f7-4da8-9806-134d240ff126" alt="Image 3" width="500" height="300">
+
+
 
 ### Normalization
 ![image](https://github.com/lolmomarchal/SlideLab/assets/114376800/532fe9f7-b44b-4da3-bf86-a979ebe19127)
