@@ -1,12 +1,12 @@
+<div align="right">
+  <img src="https://github.com/user-attachments/assets/e7219b41-d35b-4a31-b1c2-2eac9c71d03f" width="350" height="300">
+</div>
 
-<img src="https://github.com/user-attachments/assets/e7219b41-d35b-4a31-b1c2-2eac9c71d03f" width="350" height="300">
+This script performs Whole Slide Image (WSI) preprocessing, including masking, tiling, normalization, quality checks, encoding, and optional whole slide reconstruction after tiling. It can be used as a customizable pipeline for mass WSI processing or to directly call functions to perform specific tasks.
 
+As a pipeline, it is designed to ensure that if stopped for any reason, you will be able to continue at the last step that was completed. It also includes both an error report (for any error that may occur and the location it occurred) and a summary report with statistics like % of tissue and time taken to process the file.
 
-
-This script performs Whole Slide Image (WSI) preprocessing, including masking, tiling, normalization, quality checks, encoding and optional whole slide reconstruction after tiling. It can be used as a customazible pipeline for mass WSI processing or to directly call functions to perform specific tasks. As a pipeline, it is designed to ensure that if stopped for any reason, you will be able to continue at the last step that was completed. It also includes both an error report (for any error that may occur and the location it occurred) and a summary report with statistics like % of tissue and time taken to process file.
-
-![Screenshot 2025-01-30 200023](https://github.com/user-attachments/assets/f21d84ef-3278-4cd0-bcd8-73845cc0b498)
-
+![slidelab_workflow](https://github.com/user-attachments/assets/5ec85991-6ed8-435a-b888-4b3d9304845d)
 
 ### Masking
 ![image](https://github.com/lolmomarchal/SlideLab/assets/114376800/2c4c98fd-a6ae-40c0-8e9a-5f9d88404e92)
