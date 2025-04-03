@@ -1,12 +1,42 @@
-<div align="right">
-  <img src="https://github.com/user-attachments/assets/e7219b41-d35b-4a31-b1c2-2eac9c71d03f" width="350" height="300">
-</div>
+# Table of Contents  
 
-This script performs Whole Slide Image (WSI) preprocessing, including masking, tiling, normalization, quality checks, encoding, and optional whole slide reconstruction after tiling. It can be used as a customizable pipeline for mass WSI processing or to directly call functions to perform specific tasks.
+<img src="https://github.com/user-attachments/assets/e7219b41-d35b-4a31-b1c2-2eac9c71d03f" align="right" width="400" style="margin-left: 15px;"/>
 
-As a pipeline, it is designed to ensure that if stopped for any reason, you will be able to continue at the last step that was completed. It also includes both an error report (for any error that may occur and the location it occurred) and a summary report with statistics like % of tissue and time taken to process the file.
+1. [Overview](#overview)  
+2. [Preprocessing Steps](#preprocessing-steps)  
+   - [Masking](#masking)  
+   - [Normalization](#normalization)  
+   - [Tiling](#tiling)  
+3. [Reports](#reports)  
+   - [Summary Report](#summary-report)  
+   - [Error Report](#error-report)  
+4. [Requirements](#requirements)  
+5. [Installation](#installation)  
+   - [Conda Installation](#conda-installation)  
+6. [Usage](#usage)  
+   - [Arguments](#arguments)  
+     - [Input/Output (Required)](#inputoutput-required)  
+     - [Tile Customization](#tile-customization)  
+     - [Preprocessing Options](#preprocessing-options)  
+     - [Thresholds](#thresholds)  
+     - [Devices and Multiprocessing](#devices-and-multiprocessing)  
+     - [Additional Parameters](#additional-params)  
+   - [Example Command](#example-command)  
+   - [Running Individual Classes](#to-run-individual-classes)  
+
+<br clear="left"/>
+
+
+# Overview 
+
+This script performs Whole Slide Image (WSI) preprocessing, including masking, tiling, normalization, quality checks, encoding, and optional whole slide reconstruction after tiling. It can be used as a customizable pipeline for mass WSI processing or to directly call functions to perform specific tasks. Please refer to the parameters to see the potential options. As a pipeline, it is designed to ensure that if stopped for any reason, you will be able to continue at the last step that was completed. It also includes both an error report (for any error that may occur and the location in the pipeline where occurred) and a summary report with statistics like % of tissue and time taken to process the WSI.
+
+
+
 
 ![slidelab_workflow](https://github.com/user-attachments/assets/5ec85991-6ed8-435a-b888-4b3d9304845d)
+
+# Preprocessing Steps
 
 ### Masking
 ![image](https://github.com/lolmomarchal/SlideLab/assets/114376800/2c4c98fd-a6ae-40c0-8e9a-5f9d88404e92)
@@ -29,7 +59,7 @@ As a pipeline, it is designed to ensure that if stopped for any reason, you will
 
 In order to use this package, you must have python (>3.9) installed on your system. Conda is also recommended for installation.
 
-#Installation
+# Installation
 
 First clone the repository and cd into repository: 
 ```sh
@@ -38,7 +68,7 @@ cd SlideLab
 ```
 To install required dependencies you can do through conda:
 
-### conda
+### Conda Installation
 ```sh
 conda env create -f environment.yml
 conda activate slidelab
