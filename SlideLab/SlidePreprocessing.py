@@ -502,6 +502,33 @@ def preprocessing(path, patient_id, args):
     time_patches_cpu = time.process_time() - start_time_patches_cpu
     summary = summary_()
     summary.append("Processed")
+    print("finished saving, current memmeory stats") 
+    if torch.cuda.is_available():
+                    print(" GPU Memory Usage:")
+                    print(f"Allocated: {round(torch.cuda.memory_allocated(0)/1024**3, 1)} GB")
+                    print(f"Reserved: {round(torch.cuda.memory_reserved(0)/1024**3, 1)} GB")
+    import psutil
+    process = psutil.Process(os.getpid())
+    mem_info = process.memory_info()
+            
+    print("\nCPU Statistics:")
+    print(f"RSS (Resident Set Size): {mem_info.rss / 1024 ** 2:.2f} MB")
+    print(f"VMS (Virtual Memory Size): {mem_info.vms / 1024 ** 2:.2f} MB")
+    print(f"CPU Usage: {psutil.cpu_percent(interval=1)}%")
+            
+    gc.collect()
+    after_gc_mem = process.memory_info().rss / 1024 ** 2
+    print(f"Memory usage after garbage collection: {after_gc_mem:.2f} MB")
+    print("---------------------------------")
+    import threading
+
+    def print_thread_status():
+        print(f"\n{'='*40}\nActive Threads: {threading.active_count()}")
+        for t in threading.enumerate():
+            print(f"Name: {t.name}, Alive: {t.is_alive()}, Daemon: {t.daemon}")
+    
+    print_thread_status()
+    
 
     # sanity check -> statistics for process do (1-2 examples)
     if args.normalize_staining:
@@ -541,6 +568,7 @@ def preprocessing(path, patient_id, args):
                         normalized_img.save(os.path.join(QC_path, "normalized_blurry.png"))
                         break
                     i += 1
+            print("finished QC")               
     return summary, error
 
 
