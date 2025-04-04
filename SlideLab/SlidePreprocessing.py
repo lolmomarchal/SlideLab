@@ -456,8 +456,8 @@ def preprocessing(path, patient_id, args):
                 process_tile(index, tile_iterator, patient_id, sample_path, results, vars)
                 queue.task_done()
         
-        # metadata_list = multiprocessing.Manager().list()  
-        queue = multiprocessing.Queue() 
+        metadata_list = multiprocessing.Manager().list()  
+        queue =  queue.Queue() 
         results, vars = [], []
         tile_iterator = TileIterator(
             slide, coordinates=coordinates, mask=mask, normalizer=None, 
