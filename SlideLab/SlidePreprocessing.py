@@ -18,6 +18,7 @@ import random
 import threading
 from queue import Queue 
 import gc
+import traceback
 # classes/functions
 import Reports, SlideEncoding
 from TileNormalization import normalizeStaining, normalizeStaining_torch
@@ -430,26 +431,34 @@ def preprocessing(path, patient_id, args):
 
     else:
         def process_tile(index, tile_iterator, patient_id, sample_path, results, vars):
-                img, coord = tile_iterator[index] 
-                img_np = np.array(img)
-            
-                if args.normalize_staining:
-                    img_np = normalizeStaining(img_np)
-                    if img_np is None:
-                        return 
-                if args.remove_blurry_tiles:
-                    blurry, var = LaplaceFilter(img_np)
-                    vars.append(var)
-                    if blurry:
-                        return  
-                image_path = os.path.join(sample_path, f"{patient_id}_{coord[0]}_{coord[1]}_size_{tile_iterator.size}_mag_{tile_iterator.magnification}.png")
-                cv2.imwrite(image_path, img_np[:, :, ::-1])
-            
-                results.append({
-                    "Patient_ID": patient_id, "x": coord[0], "y": coord[1],
-                    "tile_path": image_path,  "original_size": tile_iterator.adjusted_size,
-                    "desired_size": tile_iterator.size, "desired_magnification": tile_iterator.magnification
+            try:
+                    img, coord = tile_iterator[index] 
+                    img_np = np.array(img)
+                
+                    if args.normalize_staining:
+                        img_np = normalizeStaining(img_np)
+                        if img_np is None:
+                            return 
+                    if args.remove_blurry_tiles:
+                        blurry, var = LaplaceFilter(img_np)
+                        vars.append(var)
+                        if blurry:
+                            return  
+                    image_path = os.path.join(sample_path, f"{patient_id}_{coord[0]}_{coord[1]}_size_{tile_iterator.size}_mag_{tile_iterator.magnification}.png")
+                    try:
+                        cv2.imwrite(image_path, img_np[:, :, ::-1])
+                    except Exception as e:
+                            print(f"cv2.imwrite failed for {image_path}: {e}")
+                            return
+                
+                    results.append({
+                        "Patient_ID": patient_id, "x": coord[0], "y": coord[1],
+                        "tile_path": image_path,  "original_size": tile_iterator.adjusted_size,
+                        "desired_size": tile_iterator.size, "desired_magnification": tile_iterator.magnification
                 })
+            except:
+                print(f"Error processing tile {index}: {e}")
+                traceback.print_exc()
         # cpu worker
         def worker(queue, tile_iterator, patient_id, sample_path, results, vars):
             while True:
@@ -460,7 +469,7 @@ def preprocessing(path, patient_id, args):
                 queue.task_done()
         manager = multiprocessing.Manager()
         metadata_list = manager.list()  
-        queue = manager.Queue()
+        queue = Queue()
         results, vars = [], []
         tile_iterator = TileIterator(
             slide, coordinates=coordinates, mask=mask, normalizer=None, 
@@ -681,11 +690,13 @@ def main():
     # # process samples, will be multiprocessing the instances.
     # results = []
     for i, row in tqdm.tqdm(patients.iterrows(), total=len(patients)):
+        print("---------------------------------")
         print(f"Working on: {row['Patient ID']}")
         if not os.path.isfile(os.path.join(output_path, row["Patient ID"], row["Patient ID"] + ".csv")):
+            print("starting preprocessing")
             results = preprocessing(row["Original Slide Path"], row["Patient ID"], args)
             print(f"Summary: {results[0]}, Errors: {results[1]}")
-            
+            print("Getting Reports ...")
             Reports.Reports([results[0]], [results[1]], output_path)
             if torch.cuda.is_available():
                     print(" GPU Memory Usage:")
@@ -703,6 +714,7 @@ def main():
             gc.collect()
             after_gc_mem = process.memory_info().rss / 1024 ** 2
             print(f"Memory usage after garbage collection: {after_gc_mem:.2f} MB")
+            print("---------------------------------")
             
                 
             # results.append(preprocessing(row["Original Slide Path"], row["Patient ID"], args))
