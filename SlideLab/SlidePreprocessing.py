@@ -333,7 +333,10 @@ def preprocessing(path, patient_id, args):
     # Step 3: get tiles (separated into 2 different processes depending if available gpu or not)
 
     if device == "cuda":
-        metadata_list = multiprocessing.Manager().list()  
+        manager = multiprocessing.Manager()
+        metadata_list = manager.list()
+        save_queue = manager.Queue() 
+        # metadata_list = multiprocessing.Manager().list()  
         tile_iterator = TileIterator(
             slide, coordinates=coordinates, mask=mask, normalizer=None, 
             size=desired_size, magnification=desired_magnification, 
@@ -344,7 +347,7 @@ def preprocessing(path, patient_id, args):
         num_saving_workers = max_workers - num_gpu_workers  
         cuda_streams = [torch.cuda.Stream() for _ in range(args.batch_size)]
         # set up save queue 
-        save_queue = multiprocessing.Queue() 
+        # save_queue = multiprocessing.Queue() 
     
         def chunk_iterator(iterator, num_workers):
             """ Distribute tile indices evenly among workers. """
