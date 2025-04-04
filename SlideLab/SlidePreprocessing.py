@@ -26,6 +26,7 @@ from TileQualityFilters import LaplaceFilter, plot_distribution
 from TissueMask import is_tissue, get_region_mask, TissueMask
 from tiling.TileIterator import TileIterator
 from tiling.TileDataset import TileDataset
+import psutil
 
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
@@ -507,7 +508,6 @@ def preprocessing(path, patient_id, args):
                     print(" GPU Memory Usage:")
                     print(f"Allocated: {round(torch.cuda.memory_allocated(0)/1024**3, 1)} GB")
                     print(f"Reserved: {round(torch.cuda.memory_reserved(0)/1024**3, 1)} GB")
-    import psutil
     process = psutil.Process(os.getpid())
     mem_info = process.memory_info()
             
@@ -728,7 +728,6 @@ def main():
                     print(" GPU Memory Usage:")
                     print(f"Allocated: {round(torch.cuda.memory_allocated(0)/1024**3, 1)} GB")
                     print(f"Reserved: {round(torch.cuda.memory_reserved(0)/1024**3, 1)} GB")
-            import psutil
             process = psutil.Process(os.getpid())
             mem_info = process.memory_info()
             
