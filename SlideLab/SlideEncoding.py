@@ -119,7 +119,11 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=51
     encoder_ = encoder(encoder_type=encoder_model, device=device, token = token)
     if number_of_augmentation != 0:
         batch_size = math.ceil(batch_size/number_of_augmentation)
-    tile_dataset = TilePreprocessing(tile_path, device=device, num_augmentations=number_of_augmentation)
+    try:
+        tile_dataset = TilePreprocessing(tile_path, device=device, num_augmentations=number_of_augmentation)
+    except Exception as e:
+        print(f"something went wrong while encoding {patient_id}")
+        return e
     all_features, all_x, all_y, all_tile_paths = [], [], [], []
     high_qual_all = []
 
@@ -133,7 +137,7 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=51
             all_tile_paths.extend(tile_paths)
             images = images.to(device, non_blocking=True)
     
-            if images.ndimension() == 4:  # Non-augmented case: [batch_size, C, H, W]
+            if images.ndimension() == 4: 
                 batch_size, C, H, W = images.shape
                 features = encoder_(images).squeeze(-1).squeeze(-1)
                 features = features.cpu().numpy()
