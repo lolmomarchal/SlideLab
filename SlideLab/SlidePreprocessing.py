@@ -34,7 +34,7 @@ SlidePreprocessing.py
 
 Author: Lorenzo Olmo Marchal
 Created: 3/5/2024
-Last Updated:  4/2/2025
+Last Updated:  2/4/2025
 
 Description:
 This script automates the preprocessing and normalization of Whole Slide Images (WSI) in digital histopathology. 
@@ -66,6 +66,26 @@ def filter_patients(patient_df, summary_df, args):
     filtered_patients = patient_df[~patient_df["Patient ID"].isin(not_passing_QC)]
     filtered_path = os.path.join(args.output_path, "filtered_patients.csv")
     filtered_patients.to_csv(filtered_path, index=False)
+
+
+def preprocess_patient(row, device, encoder_path, args):
+    result = row["Preprocessing Path"]
+    original = row["Original Slide Path"]
+    patient_id = row["Patient ID"]
+    s, e = preprocessing(original, result, patient_id, device, encoder_path, args)
+    print(f"done with patient {patient_id}")
+    return s, e
+
+
+def extract_diagnosis(ID):
+    ID = ID.split("-")
+    diagnosis = ID[3]
+    tumor_identification = ''.join([char for char in diagnosis if char.isdigit()])
+    if int(tumor_identification) >= 11:
+        return 0
+    else:
+        return 1
+
 
 def patient_files_encoded(patient_files_path):
     df = pd.read_csv(patient_files_path)
@@ -100,6 +120,64 @@ def get_valid_coordinates(width, height, overlap, mask, size, scale, threshold):
     valid_coords = [coord for coord in coordinates if
                     is_tissue(get_region_mask(mask, scale, coord, (size, size)), threshold=threshold)]
     return total_cords, len(valid_coords), valid_coords
+
+
+# general method for tiling slide   
+def tile_slide_image(coord, desired_size, adjusted_size, patient_id, sample_path, slide, desired_mag):
+    tile = slide.read_region((coord[0], coord[1]), 0, (adjusted_size, adjusted_size)).convert('RGB').resize(
+        (desired_size, desired_size), Image.BILINEAR)
+    image_path = os.path.join(sample_path,
+                              f"{patient_id}_{coord[0]}_{coord[1]}_size_{desired_size}_mag_{desired_mag}.png")
+    tile.save(image_path)
+    del tile
+    return {"Patient_ID": patient_id, "x": coord[0], "y": coord[1], "tile_path": image_path,
+            "original_size": adjusted_size, "desired_size": desired_size, "desired_magnification": desired_mag}
+
+
+def tile_slide_normalize_image(coord, desired_size, adjusted_size, patient_id, sample_path, slide, desired_mag):
+    # global slide
+    tile = slide.read_region((coord[0], coord[1]), 0, (adjusted_size, adjusted_size)).convert('RGB').resize(
+        (desired_size, desired_size), Image.BILINEAR)
+    tile_np = normalizeStaining(np.array(tile))
+    if tile_np is None:
+        return None, 0
+    image_path = os.path.join(sample_path,
+                              f"{patient_id}_{coord[0]}_{coord[1]}_size_{desired_size}_mag_{desired_mag}.png")
+    cv2.imwrite(image_path, tile_np[:, :, ::-1])
+    return {"Patient_ID": patient_id, "x": coord[0], "y": coord[1], "tile_path": image_path,
+            "original_size": adjusted_size, "desired_size": desired_size, "desired_magnification": desired_mag}
+
+
+def tile_slide_normalize_blurry_image(coord, desired_size, adjusted_size, patient_id, sample_path, slide, desired_mag):
+    tile = slide.read_region((coord[0], coord[1]), 0, (adjusted_size, adjusted_size)).convert('RGB').resize(
+        (desired_size, desired_size), Image.BILINEAR)
+    tile_np = normalizeStaining(np.array(tile))
+    if tile_np is None:
+        return None, 0
+    blurry, var = LaplaceFilter(tile_np)
+    if not blurry:
+        image_path = os.path.join(sample_path,
+                                  f"{patient_id}_{coord[0]}_{coord[1]}_size_{desired_size}_mag_{desired_mag}.png")
+        cv2.imwrite(image_path, tile_np[:, :, ::-1])
+        return {"Patient_ID": patient_id, "x": coord[0], "y": coord[1], "tile_path": image_path,
+                "original_size": adjusted_size, "desired_size": desired_size, "desired_magnification": desired_mag}, var
+    return None, var
+
+
+def normalize_gpu(coord, tile):
+    try:
+        norm_tile = normalizeStaining_torch(
+            torch.tensor(np.array(tile), dtype=torch.float32),
+        )
+        if norm_tile is None:
+            return None
+        return coord, norm_tile
+    except Exception as e:
+        print(f"Error in GPU task for tile {coord}: {e}")
+        return None
+    finally:
+        torch.cuda.synchronize()
+        torch.cuda.empty_cache()
 
 
 def save_tiles(coord, norm_tile, output_dir, patient_id, desired_size, desired_mag):
@@ -264,7 +342,7 @@ def preprocessing(path, patient_id, args):
     
         num_gpu_workers = max_workers // 3  
         num_saving_workers = max_workers - num_gpu_workers  
-        cuda_streams = [torch.cuda.Stream() for _ in range(max_gpu_workers)]
+        cuda_streams = [torch.cuda.Stream() for _ in range(num_gpu_workers)]
         # set up save queue 
         save_queue = multiprocessing.Queue() 
     
@@ -319,15 +397,14 @@ def preprocessing(path, patient_id, args):
 
         for t in gpu_threads:
             t.join()
-        for stream in cuda_streams:
-            stream.synchronize()
 
         for _ in range(num_saving_workers):
             save_queue.put(None)
 
         for p in save_processes:
             p.join()
-        torch.cuda.empty_cache()
+        for stream in cuda_streams:
+            del stream
         try:
             if isinstance(metadata_list[0], tuple):
                 metadata_list, vars = zip(*metadata_list)
@@ -401,6 +478,7 @@ def preprocessing(path, patient_id, args):
             queue.put(None)
         for thread in threads:
             thread.join()
+            
         results_ = [result for result in results if result]
 
         df_tiles = pd.DataFrame(results_)
@@ -556,17 +634,13 @@ def parse_args():
 
     # for devices + multithreading
     parser.add_argument("--device", default=None)
-    parser.add_argument("--gpu_processes", type=int, default=None)
+    parser.add_argument("--gpu_processes", type=int, default=1)
     parser.add_argument("--cpu_processes", type=int, default=os.cpu_count())
     parser.add_argument("--batch_size", type=int, default=16)
 
     # QC 
     parser.add_argument("--min_tiles", type=float, default=0,
                         help="Number of tiles a patient should have.")
-
-    # extra
-    parser.add_argument( "--move_directories", action="store_true",
-                        help="Flag to encode tiles and create associated .h5 file")
 
     return parser.parse_args()
 
@@ -595,7 +669,7 @@ def main():
     encoder_path = os.path.join(output_path, "encoded")
 
     # to handle if given directory of svs files (like getting it from the TCGA directory)
-    if os.path.isdir(input_path) and args.move_directories:
+    if os.path.isdir(input_path):
         move_svs_files(input_path)
 
     # create a csv with information about the samples available
@@ -603,11 +677,13 @@ def main():
     patients = pd.read_csv(patient_path)
 
     # # process samples, will be multiprocessing the instances.
+    # results = []
     for i, row in tqdm.tqdm(patients.iterrows(), total=len(patients)):
         print(f"Working on: {row['Patient ID']}")
         if not os.path.isfile(os.path.join(output_path, row["Patient ID"], row["Patient ID"] + ".csv")):
             results = preprocessing(row["Original Slide Path"], row["Patient ID"], args)
             Reports.Reports([results[0]], [results[1]], output_path)
+            # results.append(preprocessing(row["Original Slide Path"], row["Patient ID"], args))
 
     # encode after all patients have been preprocessed
     encoding_times = []
