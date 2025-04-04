@@ -342,7 +342,7 @@ def preprocessing(path, patient_id, args):
     
         num_gpu_workers = max_workers // 3  
         num_saving_workers = max_workers - num_gpu_workers  
-        cuda_streams = [torch.cuda.Stream() for _ in range(num_gpu_workers)]
+        cuda_streams = [torch.cuda.Stream() for _ in range(args.batch_size)]
         # set up save queue 
         save_queue = multiprocessing.Queue() 
     
@@ -403,8 +403,6 @@ def preprocessing(path, patient_id, args):
 
         for p in save_processes:
             p.join()
-        for stream in cuda_streams:
-            del stream
         try:
             if isinstance(metadata_list[0], tuple):
                 metadata_list, vars = zip(*metadata_list)
@@ -479,6 +477,26 @@ def preprocessing(path, patient_id, args):
         for thread in threads:
             thread.join()
             
+
+
+        
+            # mult_args = [(coord, desired_size, adjusted_size, patient_id, tiles_dir, slide, desired_magnification)
+        #              for coord in coordinates]
+        # with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        #     if not args.normalize_staining:
+        #         results = list(executor.map(lambda p: tile_slide_image(*p), mult_args))
+        #     elif args.normalize_staining and not args.remove_blurry_tiles:
+        #         results = list(executor.map(lambda p: tile_slide_normalize_image(*p), mult_args))
+        #     else:
+        #         results_ = list(executor.map(lambda p: tile_slide_normalize_blurry_image(*p), mult_args))
+        #         # need to rewrite -> should be a list of tuples
+        #         results = []
+        #         for item in results_:
+        #             if item[0] is not None:
+        #                 results.append(item[0])
+        #             vars.append(item[1])
+
+
         results_ = [result for result in results if result]
 
         df_tiles = pd.DataFrame(results_)
