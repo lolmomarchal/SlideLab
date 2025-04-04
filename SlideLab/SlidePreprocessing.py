@@ -520,8 +520,6 @@ def preprocessing(path, patient_id, args):
     after_gc_mem = process.memory_info().rss / 1024 ** 2
     print(f"Memory usage after garbage collection: {after_gc_mem:.2f} MB")
     print("---------------------------------")
-    import threading
-
     def print_thread_status():
         print(f"\n{'='*40}\nActive Threads: {threading.active_count()}")
         for t in threading.enumerate():
