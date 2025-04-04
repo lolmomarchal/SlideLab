@@ -681,7 +681,27 @@ def main():
         print(f"Working on: {row['Patient ID']}")
         if not os.path.isfile(os.path.join(output_path, row["Patient ID"], row["Patient ID"] + ".csv")):
             results = preprocessing(row["Original Slide Path"], row["Patient ID"], args)
+            print(f"Summary: {results[0]}, Errors: {results[1]}")
+            
             Reports.Reports([results[0]], [results[1]], output_path)
+            if torch.cuda.is_available():
+                    print(" GPU Memory Usage:")
+                    print(f"Allocated: {round(torch.cuda.memory_allocated(0)/1024**3, 1)} GB")
+                    print(f"Reserved: {round(torch.cuda.memory_reserved(0)/1024**3, 1)} GB")
+            import psutil
+            process = psutil.Process(os.getpid())
+            mem_info = process.memory_info()
+            
+            print("\nCPU Statistics:")
+            print(f"RSS (Resident Set Size): {mem_info.rss / 1024 ** 2:.2f} MB")
+            print(f"VMS (Virtual Memory Size): {mem_info.vms / 1024 ** 2:.2f} MB")
+            print(f"CPU Usage: {psutil.cpu_percent(interval=1)}%")
+            
+            gc.collect()
+            after_gc_mem = process.memory_info().rss / 1024 ** 2
+            print(f"Memory usage after garbage collection: {after_gc_mem:.2f} MB")
+            
+                
             # results.append(preprocessing(row["Original Slide Path"], row["Patient ID"], args))
 
     # encode after all patients have been preprocessed
