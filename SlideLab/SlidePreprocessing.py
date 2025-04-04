@@ -17,6 +17,7 @@ import concurrent.futures
 import random
 import threading
 from queue import Queue 
+import gc
 # classes/functions
 import Reports, SlideEncoding
 from TileNormalization import normalizeStaining, normalizeStaining_torch
