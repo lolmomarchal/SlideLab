@@ -479,7 +479,7 @@ def preprocessing(path, patient_id, args):
 
         threads = []
         for _ in range(max_workers):
-            thread = threading.Thread(target=worker, args=(queue, tile_iterator, patient_id, os.path.join(sample_path, "tiles"), results, vars), daemon=True)  
+            thread = threading.Thread(target=worker, args=(queue, tile_iterator, patient_id, os.path.join(sample_path, "tiles"), results, vars))  
             thread.start()
             threads.append(thread)
         for idx in range(len(tile_iterator)):
