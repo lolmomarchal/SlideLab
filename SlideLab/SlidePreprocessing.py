@@ -16,8 +16,7 @@ from concurrent.futures import ThreadPoolExecutor
 import concurrent.futures
 import random
 import threading
-import queue 
-
+from queue import Queue 
 # classes/functions
 import Reports, SlideEncoding
 from TileNormalization import normalizeStaining, normalizeStaining_torch
@@ -458,9 +457,9 @@ def preprocessing(path, patient_id, args):
                     break  
                 process_tile(index, tile_iterator, patient_id, sample_path, results, vars)
                 queue.task_done()
-        
-        metadata_list = multiprocessing.Manager().list()  
-        queue =  queue.Queue() 
+        manager = multiprocessing.Manager()
+        metadata_list = manager.list()  
+        queue = manager.Queue()
         results, vars = [], []
         tile_iterator = TileIterator(
             slide, coordinates=coordinates, mask=mask, normalizer=None, 
