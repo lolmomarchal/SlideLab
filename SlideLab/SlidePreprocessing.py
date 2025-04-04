@@ -457,7 +457,7 @@ def preprocessing(path, patient_id, args):
                 queue.task_done()
         
         # metadata_list = multiprocessing.Manager().list()  
-        queue = Queue(maxsize= max_workers *2)
+        queue = multiprocessing.Queue() 
         results, vars = [], []
         tile_iterator = TileIterator(
             slide, coordinates=coordinates, mask=mask, normalizer=None, 
@@ -476,25 +476,6 @@ def preprocessing(path, patient_id, args):
             queue.put(None)
         for thread in threads:
             thread.join()
-            
-
-
-        
-            # mult_args = [(coord, desired_size, adjusted_size, patient_id, tiles_dir, slide, desired_magnification)
-        #              for coord in coordinates]
-        # with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        #     if not args.normalize_staining:
-        #         results = list(executor.map(lambda p: tile_slide_image(*p), mult_args))
-        #     elif args.normalize_staining and not args.remove_blurry_tiles:
-        #         results = list(executor.map(lambda p: tile_slide_normalize_image(*p), mult_args))
-        #     else:
-        #         results_ = list(executor.map(lambda p: tile_slide_normalize_blurry_image(*p), mult_args))
-        #         # need to rewrite -> should be a list of tuples
-        #         results = []
-        #         for item in results_:
-        #             if item[0] is not None:
-        #                 results.append(item[0])
-        #             vars.append(item[1])
 
 
         results_ = [result for result in results if result]
