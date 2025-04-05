@@ -1,6 +1,6 @@
 # Table of Contents  
 
-<img src="https://github.com/user-attachments/assets/e7219b41-d35b-4a31-b1c2-2eac9c71d03f" align="right" width="400" style="margin-left: 15px;"/>
+<img src="https://github.com/user-attachments/assets/30af96ac-88b9-4f32-a992-cc428e27ee31" align="right" width="400" style="margin-left: 15px;"/>
 
 1. [Overview](#overview)  
 2. [Preprocessing Steps](#preprocessing-steps)  
