@@ -1,12 +1,11 @@
+# Tile Dataset
 import torch
 from torch.utils.data import Dataset
 from torchvision import datasets
 from torchvision.transforms import ToTensor
 import numpy as np
 import openslide
-from TileNormalization import normalizeStaining
 from PIL import Image
-from TissueMask import is_tissue, get_region_mask, TissueMask
 
 def best_size(desired_mag, natural_mag, desired_size) -> int:
     new_size = natural_mag / desired_mag
@@ -61,9 +60,7 @@ class TileDataset(Dataset):
             w, h = self.slide.dimensions
             all_coords, valid_coordinates, self.coordinates = get_valid_coordinates(w, h, overlap,
                                                                                     self.mask.mask,
-                                                                                    self.adjusted_size,
-                                                                                    self.mask.SCALE,
-                                                                                    threshold=tissue_threshold)
+                                                                                    self.adjusted_size,                                                                          self.mask.SCALE,                                                                                threshold=tissue_threshold)
 
     def __len__(self):
         return len(self.coordinates)
@@ -74,6 +71,4 @@ class TileDataset(Dataset):
         tile = self.slide.read_region((coord[0], coord[1]), 0, (self.adjusted_size, self.adjusted_size)).convert(
             'RGB').resize(
             (self.size, self.size), Image.BILINEAR)
-        return tile, coord
-
-
+        return torch.from_numpy(np.array(tile)), torch.tensor(coord)
