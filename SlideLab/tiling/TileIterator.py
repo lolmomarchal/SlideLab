@@ -22,7 +22,7 @@ def get_valid_coordinates(width, height, overlap, mask, size, scale, threshold):
     # valid coordinates according to mask
     valid_coords = [coord for coord in coordinates if
                     is_tissue(get_region_mask(mask, scale, coord, (size, size)), threshold=threshold)]
-    return total_cords, len(valid_coords), valid_coords
+    return total_cords, len(valid_coords), valid_coords, coordinates
 
 
 class TileIterator:
@@ -55,7 +55,7 @@ class TileIterator:
         else:
             # valid coords
             w, h = self.slide.dimensions
-            all_coords, valid_coordinates, self.coordinates = get_valid_coordinates(w, h, overlap,
+            _, valid_coordinates, self.coordinates,self.all_coords = get_valid_coordinates(w, h, overlap,
                                                                                     self.mask.mask,
                                                                                     self.adjusted_size,
                                                                                     self.mask.SCALE,

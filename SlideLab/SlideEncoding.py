@@ -95,20 +95,25 @@ class TilePreprocessing(Dataset):
         ])
         self.no_augmentations = transforms.Compose([transforms.Resize(224),
             transforms.ToTensor(), self.normalize])
+
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, idx):
-        x, y, tile_path = self.data[idx]
-        image = Image.open(tile_path)
-        if self.num_augmentations == 0:
-            return x, y, self.no_augmentations(image), tile_path
+        try:
+            x, y, tile_path = self.data[idx]
+            image = Image.open(tile_path)
+            if self.num_augmentations == 0:
+                return x, y, self.no_augmentations(image), tile_path
 
-        augmented_images = [self.augmentations(image.copy()) for _ in range(self.num_augmentations)]
-        augmented_images.insert(0, self.no_augmentations(image))
-        stacked_images = torch.stack(augmented_images, dim=0)
+            augmented_images = [self.augmentations(image.copy()) for _ in range(self.num_augmentations)]
+            augmented_images.insert(0, self.no_augmentations(image))
+            stacked_images = torch.stack(augmented_images, dim=0)
 
-        return x, y, stacked_images, tile_path
+            return x, y, stacked_images, tile_path
+        except:
+            del self.data[idx]
+            return self.__getitem__(idx)
 
 
 # Warning: Reduce batch_size when using augmentations!!!!!!

@@ -19,13 +19,16 @@ import threading
 from queue import Queue 
 import gc
 import traceback
+
 # classes/functions
+
 import Reports, SlideEncoding
 from TileNormalization import normalizeStaining, normalizeStaining_torch
 from TileQualityFilters import LaplaceFilter, plot_distribution
 from TissueMask import is_tissue, get_region_mask, TissueMask
 from tiling.TileIterator import TileIterator
 from tiling.TileDataset import TileDataset
+from VisulizationUtils import reconstruct_slide
 import psutil
 
 
@@ -121,65 +124,9 @@ def get_valid_coordinates(width, height, overlap, mask, size, scale, threshold):
     # valid coordinates according to mask
     valid_coords = [coord for coord in coordinates if
                     is_tissue(get_region_mask(mask, scale, coord, (size, size)), threshold=threshold)]
-    return total_cords, len(valid_coords), valid_coords
+    return total_cords, len(valid_coords), valid_coords, coordinates
 
 
-# general method for tiling slide   
-def tile_slide_image(coord, desired_size, adjusted_size, patient_id, sample_path, slide, desired_mag):
-    tile = slide.read_region((coord[0], coord[1]), 0, (adjusted_size, adjusted_size)).convert('RGB').resize(
-        (desired_size, desired_size), Image.BILINEAR)
-    image_path = os.path.join(sample_path,
-                              f"{patient_id}_{coord[0]}_{coord[1]}_size_{desired_size}_mag_{desired_mag}.png")
-    tile.save(image_path)
-    del tile
-    return {"Patient_ID": patient_id, "x": coord[0], "y": coord[1], "tile_path": image_path,
-            "original_size": adjusted_size, "desired_size": desired_size, "desired_magnification": desired_mag}
-
-
-def tile_slide_normalize_image(coord, desired_size, adjusted_size, patient_id, sample_path, slide, desired_mag):
-    # global slide
-    tile = slide.read_region((coord[0], coord[1]), 0, (adjusted_size, adjusted_size)).convert('RGB').resize(
-        (desired_size, desired_size), Image.BILINEAR)
-    tile_np = normalizeStaining(np.array(tile))
-    if tile_np is None:
-        return None, 0
-    image_path = os.path.join(sample_path,
-                              f"{patient_id}_{coord[0]}_{coord[1]}_size_{desired_size}_mag_{desired_mag}.png")
-    cv2.imwrite(image_path, tile_np[:, :, ::-1])
-    return {"Patient_ID": patient_id, "x": coord[0], "y": coord[1], "tile_path": image_path,
-            "original_size": adjusted_size, "desired_size": desired_size, "desired_magnification": desired_mag}
-
-
-def tile_slide_normalize_blurry_image(coord, desired_size, adjusted_size, patient_id, sample_path, slide, desired_mag):
-    tile = slide.read_region((coord[0], coord[1]), 0, (adjusted_size, adjusted_size)).convert('RGB').resize(
-        (desired_size, desired_size), Image.BILINEAR)
-    tile_np = normalizeStaining(np.array(tile))
-    if tile_np is None:
-        return None, 0
-    blurry, var = LaplaceFilter(tile_np)
-    if not blurry:
-        image_path = os.path.join(sample_path,
-                                  f"{patient_id}_{coord[0]}_{coord[1]}_size_{desired_size}_mag_{desired_mag}.png")
-        cv2.imwrite(image_path, tile_np[:, :, ::-1])
-        return {"Patient_ID": patient_id, "x": coord[0], "y": coord[1], "tile_path": image_path,
-                "original_size": adjusted_size, "desired_size": desired_size, "desired_magnification": desired_mag}, var
-    return None, var
-
-
-def normalize_gpu(coord, tile):
-    try:
-        norm_tile = normalizeStaining_torch(
-            torch.tensor(np.array(tile), dtype=torch.float32),
-        )
-        if norm_tile is None:
-            return None
-        return coord, norm_tile
-    except Exception as e:
-        print(f"Error in GPU task for tile {coord}: {e}")
-        return None
-    finally:
-        torch.cuda.synchronize()
-        torch.cuda.empty_cache()
 
 
 def save_tiles(coord, norm_tile, output_dir, patient_id, desired_size, desired_mag):
@@ -289,8 +236,9 @@ def preprocessing(path, patient_id, args):
     start_mask_user = time.time()
     start_mask_cpu = time.process_time()
     try:
-        mask, scale = TissueMask(slide, result_path=sample_path, blue_pen_thresh=args.blue_pen_check,
-                                 red_pen_thresh=args.red_pen_check).get_mask_attributes()
+        mask_ = TissueMask(slide, result_path=sample_path, blue_pen_thresh=args.blue_pen_check,
+                           red_pen_thresh=args.red_pen_check)
+        mask, scale = mask_.get_mask_attributes()
     except Exception as e:
         error.append((patient_id, path, e, "Tissue Mask"))
         summary = summary_()
@@ -308,7 +256,7 @@ def preprocessing(path, patient_id, args):
     start_time_coordinates_user = time.time()
     start_time_coordinates_cpu = time.process_time()
     w, h = slide.dimensions
-    all_coords, valid_coordinates, coordinates = get_valid_coordinates(w, h, overlap, mask, adjusted_size, scale,
+    all_coords, valid_coordinates, coordinates,all_coords_  = get_valid_coordinates(w, h, overlap, mask, adjusted_size, scale,
                                                                        threshold=args.tissue_threshold)
     time_coordinates_cpu = time.process_time() - start_time_coordinates_cpu
     time_coordinates = time.time() - start_time_coordinates_user
@@ -414,8 +362,7 @@ def preprocessing(path, patient_id, args):
             final  = [item for item in metadata_list if item is not None]
             vars = [item for item in vars if item is not None]
 
-            # print(metadata_list)
-    
+
             df_tiles = pd.DataFrame(list(final))
             df_tiles["original_mag"] = natural_magnification
             df_tiles["scale"] = scale
@@ -490,7 +437,6 @@ def preprocessing(path, patient_id, args):
         for thread in threads:
             thread.join()
 
-
         results_ = [result for result in results if result]
 
         df_tiles = pd.DataFrame(results_)
@@ -499,33 +445,45 @@ def preprocessing(path, patient_id, args):
         df_tiles.to_csv(tiles_path, index=False)
         # how many removed
         blurry_tiles = len(results_) if args.remove_blurry_tiles else None
+    if args.reconstruct_slide:
+        reconstruct_slide(mask_.applied, tile_iterator.coordinates,
+                          all_coords_, mask_.SCALE,
+                          tile_iterator.adjusted_size,
+                          save_path= os.path.join(sample_path, "included_tiles.png"))
+        if args.remove_blurry_tiles:
+            valid_coords = np.array([[x,y] for x, y in zip(df_tiles.x.values, df_tiles.y.values)])
+            reconstruct_slide(mask_.applied, valid_coords,
+                              all_coords_, mask_.SCALE,
+                              tile_iterator.adjusted_size,
+                              save_path= os.path.join(sample_path, "included_tiles_after_QC.png"))
+
     time_patches = time.time() - start_time_patches_user
     time_patches_cpu = time.process_time() - start_time_patches_cpu
     summary = summary_()
     summary.append("Processed")
-    print("finished saving, current memmeory stats") 
-    if torch.cuda.is_available():
-                    print(" GPU Memory Usage:")
-                    print(f"Allocated: {round(torch.cuda.memory_allocated(0)/1024**3, 1)} GB")
-                    print(f"Reserved: {round(torch.cuda.memory_reserved(0)/1024**3, 1)} GB")
-    process = psutil.Process(os.getpid())
-    mem_info = process.memory_info()
+    # print("finished saving, current memmeory stats")
+    # if torch.cuda.is_available():
+    #                 print(" GPU Memory Usage:")
+    #                 print(f"Allocated: {round(torch.cuda.memory_allocated(0)/1024**3, 1)} GB")
+    #                 print(f"Reserved: {round(torch.cuda.memory_reserved(0)/1024**3, 1)} GB")
+    # process = psutil.Process(os.getpid())
+    # mem_info = process.memory_info()
             
-    print("\nCPU Statistics:")
-    print(f"RSS (Resident Set Size): {mem_info.rss / 1024 ** 2:.2f} MB")
-    print(f"VMS (Virtual Memory Size): {mem_info.vms / 1024 ** 2:.2f} MB")
-    print(f"CPU Usage: {psutil.cpu_percent(interval=1)}%")
-            
-    gc.collect()
-    after_gc_mem = process.memory_info().rss / 1024 ** 2
-    print(f"Memory usage after garbage collection: {after_gc_mem:.2f} MB")
-    print("---------------------------------")
-    def print_thread_status():
-        print(f"\n{'='*40}\nActive Threads: {threading.active_count()}")
-        for t in threading.enumerate():
-            print(f"Name: {t.name}, Alive: {t.is_alive()}, Daemon: {t.daemon}")
+    # print("\nCPU Statistics:")
+    # print(f"RSS (Resident Set Size): {mem_info.rss / 1024 ** 2:.2f} MB")
+    # print(f"VMS (Virtual Memory Size): {mem_info.vms / 1024 ** 2:.2f} MB")
+    # print(f"CPU Usage: {psutil.cpu_percent(interval=1)}%")
+    #
+    # gc.collect()
+    # after_gc_mem = process.memory_info().rss / 1024 ** 2
+    # print(f"Memory usage after garbage collection: {after_gc_mem:.2f} MB")
+    # print("---------------------------------")
+    # def print_thread_status():
+    #     print(f"\n{'='*40}\nActive Threads: {threading.active_count()}")
+    #     for t in threading.enumerate():
+    #         print(f"Name: {t.name}, Alive: {t.is_alive()}, Daemon: {t.daemon}")
     
-    print_thread_status()
+    # print_thread_status()
     
 
     # sanity check -> statistics for process do (1-2 examples)
@@ -566,7 +524,8 @@ def preprocessing(path, patient_id, args):
                         normalized_img.save(os.path.join(QC_path, "normalized_blurry.png"))
                         break
                     i += 1
-            print("finished QC")               
+            print("finished QC")
+
     return summary, error
 
 
@@ -628,7 +587,7 @@ def patient_csv(input_path, results_path):
 # --------------------------- MAIN ----------------------------------------------------
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="WSI Preprocessing")
+    parser = argparse.ArgumentParser(description="SlideLab Arguments for Whole Slide Image preprocessing")
 
     # input/output
     parser.add_argument("-i", "--input_path", type=str)
@@ -651,6 +610,8 @@ def parse_args():
                         help="Flag to encode tiles and create associated .h5 file")
     parser.add_argument("--extract_high_quality", action="store_true",
                         help="extract high quality ")
+    parser.add_argument("--reconstruct_slide", action="store_true",
+                        help="reconstruct slide ")
     parser.add_argument("--augmentations", type=int, default=0,
                         help="augment data for training ")
     parser.add_argument("--encoder_model", default="resnet50",
