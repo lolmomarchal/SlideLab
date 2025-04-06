@@ -283,7 +283,7 @@ def preprocessing(path, patient_id, args):
     # Step 3: get tiles (separated into 2 different processes depending if available gpu or not)
 
     if device == "cuda":
-      manager = multiprocessing.Manager()
+        manager = multiprocessing.Manager()
         metadata_list = manager.list()
         save_queue = multiprocessing.Queue() 
         tile_iterator = TileDataset(
