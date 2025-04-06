@@ -1,6 +1,6 @@
 # Table of Contents  
 
-<img src="https://github.com/user-attachments/assets/30af96ac-88b9-4f32-a992-cc428e27ee31" align="right" width="400" style="margin-left: 15px;"/>
+<img src="https://github.com/user-attachments/assets/9bc49130-b598-4efc-9f6d-d699c588b33c" align="right" width="400" style="margin-left: 15px;"/>
 
 1. [Overview](#overview)  
 2. [Preprocessing Steps](#preprocessing-steps)  
@@ -107,6 +107,8 @@ With a size of 256 and an overlap of 2, tiles would overlap by 128 pixels.
 | `-e`, `--encode`         | Encode tiles into an `.h5` file                          | False   |
 | `--extract_high_quality` | Extract  features for high quality heatmaps                          | False   |
 | `--augmentations` | Get various augmentations for encoded tiles for model training                  | 0   |
+| `--reconstruct_slide` | Reconstruct slide to see included tile sections vs excluded                 | False  |
+
 
 ### Thresholds 
 | Argument               | Description                                          | Default |
