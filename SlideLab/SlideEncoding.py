@@ -127,7 +127,7 @@ def encode_tiles(patient_id, tile_path, result_path, device="cpu", batch_size=51
     try:
         tile_dataset = TilePreprocessing(tile_path, device=device, num_augmentations=number_of_augmentation)
     except Exception as e:
-        print(f"something went wrong while encoding {patient_id}")
+        print(f"something went wrong while encoding {patient_id}: {e}")
         return e
     all_features, all_x, all_y, all_tile_paths = [], [], [], []
     high_qual_all = []
