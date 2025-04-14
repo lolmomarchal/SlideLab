@@ -237,7 +237,7 @@ def preprocessing(path, patient_id, args):
     start_mask_cpu = time.process_time()
     try:
         mask_ = TissueMask(slide, result_path=sample_path, blue_pen_thresh=args.blue_pen_check,
-                           red_pen_thresh=args.red_pen_check)
+                           red_pen_thresh=args.red_pen_check, SCALE = args.mask_scale, remove_folds = args.remove_folds)
         mask, scale = mask_.get_mask_attributes()
     except Exception as e:
         error.append((patient_id, path, e, "Tissue Mask"))
@@ -590,10 +590,12 @@ def parse_args():
                         help="Flag to enable normalization of tiles")
     parser.add_argument("-e", "--encode", action="store_true",
                         help="Flag to encode tiles and create associated .h5 file")
-    parser.add_argument("--extract_high_quality", action="store_true",
-                        help="extract high quality ")
     parser.add_argument("--reconstruct_slide", action="store_true",
                         help="reconstruct slide ")
+    
+    # encoding customizations
+    parser.add_argument("--extract_high_quality", action="store_true",
+                        help="extract high quality ")
     parser.add_argument("--augmentations", type=int, default=0,
                         help="augment data for training ")
     parser.add_argument("--encoder_model", default="resnet50",
@@ -601,7 +603,7 @@ def parse_args():
     parser.add_argument("--token", default = None, help= "required to download model weights from hugging face")
     
 
-    # thresholds
+    # thresholds 
     parser.add_argument("-th", "--tissue_threshold", type=float, default=0.7,
                         help="Threshold to consider a tile as Tissue(default: %(default)s)")
     parser.add_argument("-bh", "--blur_threshold", type=float, default=0.015,
@@ -611,6 +613,9 @@ def parse_args():
     parser.add_argument("--blue_pen_check", type=float, default=0.4,
                         help="Sanity check for % of blue pen detected,  If above threshold, blue_pen mask will be ignored(default: %(default)s)")
     parser.add_argument("--include_adipose_tissue", action = "store_true", help = "will include adipose tissue in mask")
+    parser.add_argument("--remove_folds", action = "store_true", help = "will remove folded tissue in mask")
+    parser.add_argument("--mask_scale", type= int, default = None, help = "scale at which to downscale WSI for masking. Recommended is either 64 or None which will downsize to the lowest possible downscale recommended by openslide. None will produce a higher quality mask but is slower than 64")
+    
 
     # for devices + multithreading
     parser.add_argument("--device", default=None)
@@ -621,6 +626,7 @@ def parse_args():
     # QC 
     parser.add_argument("--min_tiles", type=float, default=0,
                         help="Number of tiles a patient should have.")
+
 
     return parser.parse_args()
 
