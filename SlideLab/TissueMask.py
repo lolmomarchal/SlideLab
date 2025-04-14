@@ -125,20 +125,20 @@ class TissueMask:
         if min_size is None:
                 min_size = binary_mask.size * 0.0001
         
-            binary_mask = binary_mask.astype(np.uint8)
-            _, binary_mask = cv2.threshold(binary_mask, 0, 255, cv2.THRESH_BINARY)
+        binary_mask = binary_mask.astype(np.uint8)
+         _, binary_mask = cv2.threshold(binary_mask, 0, 255, cv2.THRESH_BINARY)
         
-            num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(binary_mask, connectivity=8)
+        num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(binary_mask, connectivity=8)
         
-            sizes = stats[1:, cv2.CC_STAT_AREA]
-            cleaned_mask = np.zeros_like(binary_mask)
+        sizes = stats[1:, cv2.CC_STAT_AREA]
+        cleaned_mask = np.zeros_like(binary_mask)
         
-            for i in range(1, num_labels):
+        for i in range(1, num_labels):
                 if sizes[i - 1] >= min_size:
                     cleaned_mask[labels == i] = 255
         
-            mask_percentage = (np.sum(cleaned_mask > 0) / cleaned_mask.size) * 100
-            if avoid_overmask:
+        mask_percentage = (np.sum(cleaned_mask > 0) / cleaned_mask.size) * 100
+        if avoid_overmask:
                 while mask_percentage >= overmask_thresh and min_size >= 1:
                     min_size //= 2
                     cleaned_mask[:] = 0
@@ -146,11 +146,11 @@ class TissueMask:
                         if sizes[i - 1] >= min_size:
                             cleaned_mask[labels == i] = 255
                     mask_percentage = (np.sum(cleaned_mask > 0) / cleaned_mask.size) * 100
-            if kernel_size > 1:
+        if kernel_size > 1:
                 kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_size, kernel_size))
                 cleaned_mask = cv2.dilate(cleaned_mask, kernel)
         
-            return cleaned_mask
+        return cleaned_mask
 
     def get_saturation_intensity(self, image_rgb):
         hsv = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2HSV)
