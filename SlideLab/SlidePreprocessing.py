@@ -446,17 +446,22 @@ def preprocessing(path, patient_id, args):
         # how many removed
         blurry_tiles = len(results_) if args.remove_blurry_tiles else None
     if args.reconstruct_slide:
-        reconstruct_slide(mask_.applied, tile_iterator.coordinates,
-                          all_coords_, mask_.SCALE,
-                          tile_iterator.adjusted_size,
-                          save_path= os.path.join(sample_path, "included_tiles.png"))
-        if args.remove_blurry_tiles:
-            valid_coords = np.array([[x,y] for x, y in zip(df_tiles.x.values, df_tiles.y.values)])
-            reconstruct_slide(mask_.applied, valid_coords,
+        try:
+            reconstruct_slide(mask_.applied, tile_iterator.coordinates,
                               all_coords_, mask_.SCALE,
                               tile_iterator.adjusted_size,
-                              save_path= os.path.join(sample_path, "included_tiles_after_QC.png"))
-
+                              save_path= os.path.join(sample_path, "included_tiles.png"))
+        except Exception as e:
+            error.append((patient_id, path, e, "Reconstructing slide"))
+        if args.remove_blurry_tiles:
+            try:
+                valid_coords = np.array([[x,y] for x, y in zip(df_tiles.x.values, df_tiles.y.values)])
+                reconstruct_slide(mask_.applied, valid_coords,
+                                  all_coords_, mask_.SCALE,
+                                  tile_iterator.adjusted_size,
+                                  save_path= os.path.join(sample_path, "included_tiles_after_QC.png"))
+            except Exception as e:
+                error.append((patient_id, path, e, "Reconstructing slide"))
     time_patches = time.time() - start_time_patches_user
     time_patches_cpu = time.process_time() - start_time_patches_cpu
     summary = summary_()
@@ -506,8 +511,6 @@ def preprocessing(path, patient_id, args):
                         normalized_img.save(os.path.join(QC_path, "normalized_blurry.png"))
                         break
                     i += 1
-            print("finished QC")
-
     return summary, error
 
 
