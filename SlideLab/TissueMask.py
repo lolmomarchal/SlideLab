@@ -126,7 +126,7 @@ class TissueMask:
                 min_size = binary_mask.size * 0.0001
         
         binary_mask = binary_mask.astype(np.uint8)
-         _, binary_mask = cv2.threshold(binary_mask, 0, 255, cv2.THRESH_BINARY)
+        _, binary_mask = cv2.threshold(binary_mask, 0, 255, cv2.THRESH_BINARY)
         
         num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(binary_mask, connectivity=8)
         
