@@ -53,7 +53,7 @@ class TissueMask:
         self.magnification = int(self.slide.properties.get("openslide.objective-power", 40))
         self.masks_list = masks or ['whole_slide', 'green_pen', 'red_pen', 'blue_pen', 'black_pen', "filter_grays"]
         if remove_folds:
-            self.mask_list.append("tissue_folds")
+            self.masks_list.append("tissue_folds")
         self.threshold = threshold
         self.result_path = result_path
         self.otsu = self.otsu_mask_threshold()[1]
