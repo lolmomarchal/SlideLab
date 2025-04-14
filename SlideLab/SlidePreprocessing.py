@@ -468,13 +468,19 @@ def preprocessing(path, patient_id, args):
         os.makedirs(QC_path, exist_ok=True)
         # choose random coordinate
         non_blurry_coords = list(zip(df_tiles['x'], df_tiles['y']))
-        random_coord = non_blurry_coords[random.randint(0, len(non_blurry_coords) - 1)]
-        region = slide.read_region((random_coord[0], random_coord[1]), 0, (adjusted_size, adjusted_size)).convert(
-            'RGB').resize(
-            (desired_size, desired_size), Image.BILINEAR)
-        region.save(os.path.join(QC_path, "original_non_blurry.png"))
-        normalized_img = Image.fromarray(normalizeStaining(np.array(region)))
-        normalized_img.save(os.path.join(QC_path, "normalized_non_blurry.png"))
+        i = 0
+         while i <5:
+                random_coord = non_blurry_coords[random.randint(0, len(non_blurry_coords) - 1)]
+                region = slide.read_region((random_coord[0], random_coord[1]), 0, (adjusted_size, adjusted_size)).convert(
+                    'RGB').resize(
+                    (desired_size, desired_size), Image.BILINEAR)
+                normalized_img = Image.fromarray(normalizeStaining(np.array(region)))
+                if normalized_img is not None:
+                    normalized_img.save(os.path.join(QC_path, "normalized_non_blurry.png"))
+                    region.save(os.path.join(QC_path, "original_non_blurry.png"))
+                    break
+                i +=1
+
         if args.remove_blurry_tiles:
             # laplacian distribution
             distributions = os.path.join(QC_path, "tile_distributions")
