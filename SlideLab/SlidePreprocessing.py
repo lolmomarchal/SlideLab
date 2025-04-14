@@ -469,7 +469,7 @@ def preprocessing(path, patient_id, args):
         # choose random coordinate
         non_blurry_coords = list(zip(df_tiles['x'], df_tiles['y']))
         i = 0
-         while i <5:
+        while i <5:
                 random_coord = non_blurry_coords[random.randint(0, len(non_blurry_coords) - 1)]
                 region = slide.read_region((random_coord[0], random_coord[1]), 0, (adjusted_size, adjusted_size)).convert(
                     'RGB').resize(
