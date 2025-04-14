@@ -26,12 +26,15 @@ def get_region_mask(mask, scale, original_size, size):
            mask_region_location[0]:mask_region_location[0] + mask_region_size[0]]
 
 
+# to remove tissue folds
+
+
 class TissueMask:
     """"
     TissueMask: creates tissue mask object to obtain tissue regions from a WSI
     args:
     - :param slide (str, openslide.Openslide, or TissueSlide): object with reference to WSI object
-    - :param masks (list): list of filters to be used to create mask (options: 'whole_slide', 'green_pen', 'red_pen', 'blue_pen', 'black_pen', "filter_grays")
+    - :param masks (list): list of filters to be used to create mask (options: 'whole_slide', 'green_pen', 'red_pen', 'blue_pen', 'black_pen', "filter_grays", "tissue_folds")
            - default: Use all
     - :param result_path (str): if provided path, will save image representation of mask overlaid with thumbnail of slide
     - :param threshold (float in range 0-1): threshold needed for a tile to be considered "tissue"
@@ -39,7 +42,7 @@ class TissueMask:
     """
 
     def __init__(self, slide, masks=None, result_path=None,
-                 threshold=0.8, SCALE=64, red_pen_thresh = 0.4, blue_pen_thresh = 0.4):
+                 threshold=0.8, SCALE=64, red_pen_thresh = 0.4, blue_pen_thresh = 0.4, remove_folds = False):
         self.red_pen_thresh =red_pen_thresh
         self.blue_pen_thresh = blue_pen_thresh
         self.slide = openslide.OpenSlide(slide) if isinstance(slide, str) else slide
@@ -49,6 +52,8 @@ class TissueMask:
         )
         self.magnification = int(self.slide.properties.get("openslide.objective-power", 40))
         self.masks_list = masks or ['whole_slide', 'green_pen', 'red_pen', 'blue_pen', 'black_pen', "filter_grays"]
+        if remove_folds:
+            self.mask_list.append("tissue_folds")
         self.threshold = threshold
         self.result_path = result_path
         self.otsu = self.otsu_mask_threshold()[1]
@@ -118,20 +123,82 @@ class TissueMask:
         """
         # start = time.process_time()
         if min_size is None:
-            min_size = binary_mask.size * 0.0001
-        binary_mask = binary_mask.astype(bool)
-        cleaned_mask = morphology.remove_small_objects(binary_mask, min_size=min_size)
-        mask_percentage = (np.sum(cleaned_mask) / cleaned_mask.size) * 100
-        if avoid_overmask:
-            while mask_percentage >= overmask_thresh and min_size >= 1:
-                min_size //= 2
-                cleaned_mask = morphology.remove_small_objects(binary_mask, min_size=min_size)
-                mask_percentage = (np.sum(cleaned_mask) / cleaned_mask.size) * 100
+                min_size = binary_mask.size * 0.0001
+        
+            binary_mask = binary_mask.astype(np.uint8)
+            _, binary_mask = cv2.threshold(binary_mask, 0, 255, cv2.THRESH_BINARY)
+        
+            num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(binary_mask, connectivity=8)
+        
+            sizes = stats[1:, cv2.CC_STAT_AREA]
+            cleaned_mask = np.zeros_like(binary_mask)
+        
+            for i in range(1, num_labels):
+                if sizes[i - 1] >= min_size:
+                    cleaned_mask[labels == i] = 255
+        
+            mask_percentage = (np.sum(cleaned_mask > 0) / cleaned_mask.size) * 100
+            if avoid_overmask:
+                while mask_percentage >= overmask_thresh and min_size >= 1:
+                    min_size //= 2
+                    cleaned_mask[:] = 0
+                    for i in range(1, num_labels):
+                        if sizes[i - 1] >= min_size:
+                            cleaned_mask[labels == i] = 255
+                    mask_percentage = (np.sum(cleaned_mask > 0) / cleaned_mask.size) * 100
+            if kernel_size > 1:
+                kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_size, kernel_size))
+                cleaned_mask = cv2.dilate(cleaned_mask, kernel)
+        
+            return cleaned_mask
 
-        if kernel_size > 1:
-            selem = morphology.square(kernel_size)
-            cleaned_mask = morphology.dilation(cleaned_mask, selem)
-        return (cleaned_mask.astype(np.uint8)) * 255
+    def get_saturation_intensity(self, image_rgb):
+        hsv = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2HSV)
+        hsv[:, :, 2] = cv2.equalizeHist(hsv[:, :, 2])
+        s = hsv[:, :, 1] / 255.0
+        v = hsv[:, :, 2] / 255.0
+        return s, v
+    
+    def compute_difference_image(self, s, i):
+        return s - i
+    
+    def get_connected_object_counts(self, d_img, thresholds):
+        counts = []
+        for t in thresholds:
+            binary = (d_img > t).astype(np.uint8)
+            num_labels, _ = cv2.connectedComponents(binary, connectivity=8)
+            counts.append(num_labels - 1)
+        return np.array(counts)
+    
+    def find_thresholds(self,counts, thresholds, alpha, beta):
+        max_c = np.max(counts)
+        T = lambda c: thresholds[np.where(counts >= c)[0][-1]]
+        t_hard = T(alpha * max_c)
+        t_soft = T(beta * max_c)
+        return t_hard, t_soft
+    
+    def apply_thresholds(self,d_img, t_soft, t_hard):
+        soft_mask = (d_img > t_soft).astype(np.uint8)
+        hard_mask = (d_img > t_hard).astype(np.uint8)
+        kernel = np.ones((5, 5), np.uint8)
+        dilated_hard = cv2.dilate(hard_mask, kernel)
+        combined = cv2.bitwise_and(soft_mask, dilated_hard)
+        return combined
+    
+    def detect_tissue_folds(self, alpha=0.65, beta=0.34, min_size=64):
+        s, i = self.get_saturation_intensity(self.thumbnail)
+        d_img = self.compute_difference_image(s, i)
+    
+        thresholds = np.arange(-1.0, 1.01, 0.05)
+        counts = self.get_connected_object_counts(d_img, thresholds)
+    
+        t_hard, t_soft = self.find_thresholds(counts, thresholds, alpha, beta)
+    
+        fold_mask = self.apply_thresholds(d_img, t_soft, t_hard)
+        fold_mask = self.remove_small_holes(fold_mask, min_size = 64, kernel_size = 2)
+        return fold_mask.astype(bool)
+
+    
 
     def combined_mask(self):
         mask_methods = self.masks_list
@@ -141,7 +208,8 @@ class TissueMask:
             'green_pen': self.green_pen_filter,
             'black_pen': self.black_pen_filter,
             'whole_slide': self.get_whole_slide_mask,
-            "filter_grays": self.filter_grays
+            "filter_grays": self.filter_grays,
+            "tissue_folds": self.detect_tissue_folds
         }
 
         # Initialize combined mask with whole_slide if present, else with the first method
@@ -245,7 +313,6 @@ class TissueMask:
         result = result.astype("uint8") * 255
         kernel = np.ones((3, 3), np.uint8)
         dilated_mask = cv2.dilate(result, kernel, iterations=1)
-        # print(f"gray pen  {time.process_time()-start}")
         return result.astype(bool)
 
     def red_pen_filter(self):
