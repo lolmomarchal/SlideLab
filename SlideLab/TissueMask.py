@@ -196,7 +196,7 @@ class TissueMask:
     
         fold_mask = self.apply_thresholds(d_img, t_soft, t_hard)
         fold_mask = self.remove_small_holes(fold_mask, min_size = 64, kernel_size = 2)
-        return fold_mask.astype(bool)
+        return ~fold_mask.astype(bool)
 
     
 
