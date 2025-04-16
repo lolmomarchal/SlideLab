@@ -19,6 +19,8 @@ import threading
 from queue import Queue 
 import gc
 import traceback
+import psutil
+
 
 # classes/functions
 
@@ -29,7 +31,8 @@ from TissueMask import is_tissue, get_region_mask, TissueMask
 from tiling.TileIterator import TileIterator
 from tiling.TileDataset import TileDataset
 from VisulizationUtils import reconstruct_slide
-import psutil
+from config import get_args_from_config
+
 
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
@@ -39,7 +42,7 @@ SlidePreprocessing.py
 
 Author: Lorenzo Olmo Marchal
 Created: 3/5/2024
-Last Updated:  2/4/2025
+Last Updated:  4/14/2025
 
 Description:
 This script automates the preprocessing and normalization of Whole Slide Images (WSI) in digital histopathology. 
@@ -52,10 +55,8 @@ Processed tiles are saved in the output directory. Each tile is accompanied by m
 within the WSI file.
 
 """
-
 summary = []
 errors = []
-
 
 ############### post processing ##############
 
@@ -71,26 +72,6 @@ def filter_patients(patient_df, summary_df, args):
     filtered_patients = patient_df[~patient_df["Patient ID"].isin(not_passing_QC)]
     filtered_path = os.path.join(args.output_path, "filtered_patients.csv")
     filtered_patients.to_csv(filtered_path, index=False)
-
-
-def preprocess_patient(row, device, encoder_path, args):
-    result = row["Preprocessing Path"]
-    original = row["Original Slide Path"]
-    patient_id = row["Patient ID"]
-    s, e = preprocessing(original, result, patient_id, device, encoder_path, args)
-    print(f"done with patient {patient_id}")
-    return s, e
-
-
-def extract_diagnosis(ID):
-    ID = ID.split("-")
-    diagnosis = ID[3]
-    tumor_identification = ''.join([char for char in diagnosis if char.isdigit()])
-    if int(tumor_identification) >= 11:
-        return 0
-    else:
-        return 1
-
 
 def patient_files_encoded(patient_files_path):
     df = pd.read_csv(patient_files_path)
@@ -573,10 +554,11 @@ def patient_csv(input_path, results_path):
 
 def parse_args():
     parser = argparse.ArgumentParser(description="SlideLab Arguments for Whole Slide Image preprocessing")
+    parser.add_argument("--config_file", type=str, default = "None", help = "path to config file")
 
     # input/output
-    parser.add_argument("-i", "--input_path", type=str)
-    parser.add_argument("-o", "--output_path", type=str)
+    parser.add_argument("-i", "--input_path", type=str, default = "/path/to/slide(s)")
+    parser.add_argument("-o", "--output_path", type=str, default = "/output/path")
 
     # tile customization
     parser.add_argument("-s", "--desired_size", type=int, default=256,
@@ -587,8 +569,9 @@ def parse_args():
                         help="Overlap between tiles (default: %(default)s)")
 
     # preprocessing processes customization
+    parser.add_argument("--no_saving",action = "store_true", help= "flag to not save tiles. Choosing this option will lead to automatic encoding.")
     parser.add_argument("-rb", "--remove_blurry_tiles", action="store_true",
-                        help="lag to enable usage of the laplacian filter to remove blurry tiles")
+                        help="flag to enable usage of the laplacian filter to remove blurry tiles")
     parser.add_argument("-n", "--normalize_staining", action="store_true",
                         help="Flag to enable normalization of tiles")
     parser.add_argument("-e", "--encode", action="store_true",
@@ -626,17 +609,15 @@ def parse_args():
     parser.add_argument("--cpu_processes", type=int, default=os.cpu_count())
     parser.add_argument("--batch_size", type=int, default=16)
 
-    # QC 
+    # QC
     parser.add_argument("--min_tiles", type=float, default=0,
                         help="Number of tiles a patient should have.")
-
-
     return parser.parse_args()
-
 
 def main():
     args = parse_args()
-
+    if args.config_file != "None":
+        args = get_args_from_config(args.config_file)
     input_path = args.input_path
     output_path = args.output_path
     if args.device is None:
@@ -664,9 +645,6 @@ def main():
     # create a csv with information about the samples available
     patient_path = patient_csv(input_path, output_path)
     patients = pd.read_csv(patient_path)
-
-    # # process samples, will be multiprocessing the instances.
-    # results = []
     for i, row in tqdm.tqdm(patients.iterrows(), total=len(patients)):
         print("---------------------------------")
         print(f"Working on: {row['Patient ID']}")

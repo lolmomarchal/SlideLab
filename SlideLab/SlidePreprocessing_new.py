@@ -29,7 +29,7 @@ from TissueMask import is_tissue, get_region_mask, TissueMask
 from tiling.TileIterator import TileIterator
 from tiling.TileDataset import TileDataset
 from VisulizationUtils import reconstruct_slide
-import psutil
+from config import get_args_from_config
 
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
@@ -369,68 +369,97 @@ def preprocessing(path, patient_id, args):
 
 
     else:
-        def process_tile(index, tile_iterator, patient_id, sample_path, results, vars):
+        def process_tile(index, tile_iterator, patient_id, sample_path, normalize_staining, remove_blurry_tiles):
             try:
-                    img, coord = tile_iterator[index] 
-                    img_np = np.array(img)
-                
-                    if args.normalize_staining:
-                        img_np = normalizeStaining(img_np)
-                        if img_np is None:
-                            return 
-                    if args.remove_blurry_tiles:
-                        blurry, var = LaplaceFilter(img_np)
-                        vars.append(var)
-                        if blurry:
-                            return  
-                    image_path = os.path.join(sample_path, f"{patient_id}_{coord[0]}_{coord[1]}_size_{tile_iterator.size}_mag_{tile_iterator.magnification}.png")
-                    try:
-                        cv2.imwrite(image_path, img_np[:, :, ::-1])
-                    except Exception as e:
-                            print(f"cv2.imwrite failed for {image_path}: {e}")
-                            return
-                
-                    results.append({
-                        "Patient_ID": patient_id, "x": coord[0], "y": coord[1],
-                        "tile_path": image_path,  "original_size": tile_iterator.adjusted_size,
-                        "desired_size": tile_iterator.size, "desired_magnification": tile_iterator.magnification
-                })
-            except:
+                img, coord = tile_iterator[index]
+                img_np = np.array(img)
+
+                if normalize_staining:
+                    img_np = normalizeStaining(img_np)
+                    if img_np is None:
+                        return None, None
+
+                if remove_blurry_tiles:
+                    blurry, var = LaplaceFilter(img_np)
+                    if blurry:
+                        return None, var
+                else:
+                    var = None
+
+                image_path = os.path.join(
+                    sample_path, f"{patient_id}_{coord[0]}_{coord[1]}_size_{tile_iterator.size}_mag_{tile_iterator.magnification}.png"
+                )
+                cv2.imwrite(image_path, img_np[:, :, ::-1])
+
+                result = {
+                    "Patient_ID": patient_id,
+                    "x": coord[0],
+                    "y": coord[1],
+                    "tile_path": image_path,
+                    "original_size": tile_iterator.adjusted_size,
+                    "desired_size": tile_iterator.size,
+                    "desired_magnification": tile_iterator.magnification,
+                }
+                return result, var
+            except Exception as e:
                 print(f"Error processing tile {index}: {e}")
                 traceback.print_exc()
+                return None, None
         # cpu worker
-        def worker(queue, tile_iterator, patient_id, sample_path, results, vars):
+        def worker(queue, tile_iterator, patient_id, sample_path, normalize_staining, remove_blurry_tiles, result_queue):
             while True:
                 index = queue.get()
                 if index is None:
-                    break  
-                process_tile(index, tile_iterator, patient_id, sample_path, results, vars)
-                queue.task_done()
-        manager = multiprocessing.Manager()
-        metadata_list = manager.list()  
-        queue = Queue()
-        results, vars = [], []
+                    break
+                result, var = process_tile(index, tile_iterator, patient_id, sample_path, normalize_staining, remove_blurry_tiles)
+                if result:
+                    result_queue.put(("result", result))
+                if var is not None:
+                    result_queue.put(("var", var))
+        task_queue = multiprocessing.Queue()
+        result_queue = multiprocessing.Queue()
+
         tile_iterator = TileIterator(
             slide, coordinates=coordinates, mask=mask, normalizer=None, 
             size=desired_size, magnification=desired_magnification, 
             adjusted_size=adjusted_size, overlap=overlap
         )
 
-        threads = []
+        workers = []
         for _ in range(max_workers):
-            thread = threading.Thread(target=worker, args=(queue, tile_iterator, patient_id, os.path.join(sample_path, "tiles"), results, vars))  
-            thread.start()
-            threads.append(thread)
+            p = multiprocessing.Process(
+                target=worker,
+                args=(task_queue, tile_iterator, patient_id, os.path.join(sample_path, "tiles"),
+                      args.normalize_staining, args.remove_blurry_tiles, result_queue)
+            )
+            p.start()
+            workers.append(p)
+
         for idx in range(len(tile_iterator)):
-            queue.put(idx)
+            task_queue.put(idx)
         for _ in range(max_workers):
-            queue.put(None)
-        for thread in threads:
-            thread.join()
+            task_queue.put(None)
 
-        results_ = [result for result in results if result]
+        results = []
+        vars_ = []
+        done_count = 0
+        expected = len(tile_iterator)
 
-        df_tiles = pd.DataFrame(results_)
+        while done_count < expected:
+            try:
+                kind, value = result_queue.get(timeout=10)
+                if kind == "result":
+                    results.append(value)
+                elif kind == "var":
+                    vars_.append(value)
+                done_count += 1
+            except:
+                break
+
+        for p in workers:
+            p.join()
+
+        df_tiles = pd.DataFrame(results)
         df_tiles["original_mag"] = natural_magnification
         df_tiles["scale"] = scale
         df_tiles.to_csv(tiles_path, index=False)
@@ -581,9 +610,11 @@ def parse_args():
     parser = argparse.ArgumentParser(description="SlideLab Arguments for Whole Slide Image preprocessing")
 
     # input/output
-    parser.add_argument("-i", "--input_path", type=str)
-    parser.add_argument("-o", "--output_path", type=str)
+    parser.add_argument("--config_file", type=str, default = "None", help = "path to config file")
 
+    # input/output
+    parser.add_argument("-i", "--input_path", type=str, default = "/path/to/slide(s)")
+    parser.add_argument("-o", "--output_path", type=str, default = "/output/path")
     # tile customization
     parser.add_argument("-s", "--desired_size", type=int, default=256,
                         help="Desired size of the tiles (default: %(default)s)")
@@ -636,6 +667,8 @@ def parse_args():
 
 def main():
     args = parse_args()
+    if args.config_file != "None":
+        args = get_args_from_config(args.config_file)
 
     input_path = args.input_path
     output_path = args.output_path
