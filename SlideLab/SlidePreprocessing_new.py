@@ -339,6 +339,12 @@ def preprocessing(path, patient_id, args):
     tiles_path = os.path.join(sample_path, patient_id + ".csv")
     tiles_dir = os.path.join(sample_path, "tiles")
     os.makedirs(tiles_dir, exist_ok=True)
+    def collate_fn(batch):
+        batch = [b for b in batch if b is not None]
+        if not batch:
+            return None  # Handle empty batch safely if needed later
+        tiles, coords, vars_ = zip(*batch)
+        return torch.stack(tiles), torch.stack(coords), torch.stack(vars_)
 
     # Step 3: get tiles (separated into 2 different processes depending if available gpu or not)
 
@@ -391,7 +397,7 @@ def preprocessing(path, patient_id, args):
             num_gpu_workers = max(1, max_workers//4)
             num_saving_workers = (max_workers - num_gpu_workers) 
             tile_loader = DataLoader(tile_iterator,shuffle = False,num_workers = num_gpu_workers,
-                                     pin_memory = True, batch_size = args.batch_size)
+                                     pin_memory = True, batch_size = args.batch_size, collate_fn = collate_fn)
             gpu_thread = threading.Thread(target=batch_norm, args=(tile_loader, save_queue, args.batch_size))
             gpu_thread.start()
             save_processes = []
@@ -436,7 +442,7 @@ def preprocessing(path, patient_id, args):
                 shuffle=False,
                 num_workers=num_gpu_workers,
                 pin_memory=True,
-                batch_size=args.batch_size
+                batch_size=args.batch_size, collate_fn = collate_fn
             )
             gpu_thread = threading.Thread(target=batch_norm, args=(tile_loader, save_queue, 16))
             gpu_thread.start()
