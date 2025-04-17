@@ -485,7 +485,7 @@ def preprocessing(path, patient_id, args):
             remove_blurry= args.remove_blurry_tiles
         )
         if args.output_format == "png":
-            tile_loader = DataLoader(tile_iterator, shuffle = False, num_workers = max_workers//2)
+            tile_loader = DataLoader(tile_iterator, shuffle = False, num_workers = max_workers//2 , collate_fn = collate_fn)
             def tile_loading(queue, data_loader, vars):
                 local_vars = []
                 for tiles, coords, var in data_loader:
@@ -568,7 +568,7 @@ def preprocessing(path, patient_id, args):
                 shuffle=False,
                 num_workers=num_gpu_workers,
                 pin_memory=True,
-                batch_size=args.batch_size
+                batch_size=args.batch_size, collate_fn = collate_fn
             )
             with h5py.File(f"{sample_path}/{patient_id}.h5", "a") as f:
                 for batch in tile_loader:
