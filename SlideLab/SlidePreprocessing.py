@@ -395,11 +395,10 @@ def preprocessing(path, patient_id, args):
                 if index is None:
                     break  
                 process_tile(index, tile_iterator, patient_id, sample_path, results, vars)
-                queue.task_done()
         manager = multiprocessing.Manager()
-        metadata_list = manager.list()  
-        queue = Queue()
-        results, vars = [], []
+        results = manager.list()
+        vars = manager.list()
+        queue = multiprocessing.Queue()
         tile_iterator = TileIterator(
             slide, coordinates=coordinates, mask=mask, normalizer=None, 
             size=desired_size, magnification=desired_magnification, 
@@ -408,7 +407,7 @@ def preprocessing(path, patient_id, args):
 
         threads = []
         for _ in range(max_workers):
-            thread = threading.Thread(target=worker, args=(queue, tile_iterator, patient_id, os.path.join(sample_path, "tiles"), results, vars))  
+            thread = multiprocessing.Process(target=worker, args=(queue, tile_iterator, patient_id, os.path.join(sample_path, "tiles"), results, vars))
             thread.start()
             threads.append(thread)
         for idx in range(len(tile_iterator)):
@@ -417,6 +416,8 @@ def preprocessing(path, patient_id, args):
             queue.put(None)
         for thread in threads:
             thread.join()
+        results = list(results)
+        vars = list(vars)
 
         results_ = [result for result in results if result]
 

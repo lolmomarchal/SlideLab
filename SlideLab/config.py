@@ -18,6 +18,7 @@ def create_parser(config=None):
                         help="path to input file/directory")
     parser.add_argument("-o", "--output_path", type=str, default=defaults.get('output_path'),
                         help="path to output directory")
+    parser.add_argument("--output_format", type = str, default =defaults.get("output_format"))
 
     parser.add_argument("-s", "--desired_size", type=int, default=defaults.get('desired_size', 256),
                         help="Desired size of the tiles (default: %(default)s)")

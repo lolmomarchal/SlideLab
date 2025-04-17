@@ -478,71 +478,138 @@ def preprocessing(path, patient_id, args):
             adjusted_size=adjusted_size, overlap=overlap, normalizer = "mac" if args.normalize_staining else None,
             remove_blurry= args.remove_blurry_tiles
         )
-        tile_loader = DataLoader(tile_iterator, shuffle = False, num_workers = max_workers//2)
-        def tile_loading(queue, data_loader, vars):
-            local_vars = []
-            for tiles, coords, var in data_loader:
-                tiles = tiles.numpy()
-                coords = coords.numpy()
-                var = var.numpy()
-                for i in range(len(tiles)):
-                    if tiles[i] is not None:
-                        queue.put((tiles[i], coords[i]))
-                    if var[i] != -1:
-                        local_vars.append(var[i])
-            vars.extend(local_vars)
-            for _ in range(max_workers):
-                queue.put(None)
+        if args.output_format == "png":
+            tile_loader = DataLoader(tile_iterator, shuffle = False, num_workers = max_workers//2)
+            def tile_loading(queue, data_loader, vars):
+                local_vars = []
+                for tiles, coords, var in data_loader:
+                    tiles = tiles.numpy()
+                    coords = coords.numpy()
+                    var = var.numpy()
+                    for i in range(len(tiles)):
+                        if tiles[i] is not None:
+                            queue.put((tiles[i], coords[i]))
+                        if var[i] != -1:
+                            local_vars.append(var[i])
+                vars.extend(local_vars)
+                for _ in range(max_workers):
+                    queue.put(None)
 
-        def save_worker_cpu(save_queue,output_dir, patient_id, desired_size, desired_mag, metadata_list):
-            while True:
-                item = save_queue.get()
-                if item is None:
-                    break
+            def save_worker_cpu(save_queue,output_dir, patient_id, desired_size, desired_mag, metadata_list):
+                while True:
+                    item = save_queue.get()
+                    if item is None:
+                        break
 
-                norm_tile, coord = item
-                try:
-                    metadata = save_tiles(coord, norm_tile, output_dir, patient_id, desired_size, desired_mag)
+                    norm_tile, coord = item
+                    try:
+                        metadata = save_tiles(coord, norm_tile, output_dir, patient_id, desired_size, desired_mag)
 
-                    if metadata:
-                        metadata_list.append(metadata)
-                except Exception as e:
-                    print(f"Error saving tile {coord}: {e}")
+                        if metadata:
+                            metadata_list.append(metadata)
+                    except Exception as e:
+                        print(f"Error saving tile {coord}: {e}")
 
-        # load tiles and put them in queue
-        tile_thread = threading.Thread(target=tile_loading, args=(save_queue, tile_loader, metadata_list))
-        tile_thread.start()
+            # load tiles and put them in queue
+            tile_thread = threading.Thread(target=tile_loading, args=(save_queue, tile_loader, metadata_list))
+            tile_thread.start()
 
-        save_processes = []
-        for _ in range(max_workers//2):
-            p = multiprocessing.Process(
-                target=save_worker_cpu,
-                args=(save_queue, os.path.join(sample_path, "tiles"), patient_id, desired_size, desired_magnification,metadata_list)
+            save_processes = []
+            for _ in range(max_workers//2):
+                p = multiprocessing.Process(
+                    target=save_worker_cpu,
+                    args=(save_queue, os.path.join(sample_path, "tiles"), patient_id, desired_size, desired_magnification,metadata_list)
+                )
+                p.start()
+                save_processes.append(p)
+            tile_thread.join()
+            for _ in range(max_workers//2):
+                save_queue.put(None)
+            for p in save_processes:
+                p.join()
+
+            try:
+                if isinstance(metadata_list[0], tuple):
+                    metadata_list, vars = zip(*metadata_list)
+                final = []
+                vars = []
+                for item in metadata_list:
+                    if item is not None and isinstance(item, dict):
+                        final.append(item)
+                    elif item is not None and isinstance(item, float):
+                        vars.append(item)
+
+
+                # final  = [item for item in metadata_list if item is not None]
+                # vars = [item for item in vars if item is not None]
+
+                print(final)
+                df_tiles = pd.DataFrame(list(final))
+                df_tiles["original_mag"] = natural_magnification
+                df_tiles["scale"] = scale
+                df_tiles.to_csv(tiles_path, index=False)
+                blurry_tiles = len(metadata_list) if args.remove_blurry_tiles else None
+            except :
+                error.append((patient_id, path, "No tiles were saved.", "Tiling"))
+                summary = summary_()
+                summary.append("Error")
+                return summary, error
+        if args.output_format == "h5":
+            var_list = []
+            num_gpu_workers = max(max_workers - 2, 1)
+            tile_loader = DataLoader(
+                tile_iterator,
+                shuffle=False,
+                num_workers=num_gpu_workers,
+                pin_memory=True,
+                batch_size=args.batch_size
             )
-            p.start()
-            save_processes.append(p)
-        tile_thread.join()
-        for _ in range(max_workers//2):
-            save_queue.put(None)
-        for p in save_processes:
-            p.join()
-        try:
-            if isinstance(metadata_list[0], tuple):
-                metadata_list, vars = zip(*metadata_list)
-            final  = [item for item in metadata_list if item is not None]
-            vars = [item for item in vars if item is not None]
+            with h5py.File(f"{sample_path}/{patient_id}.h5", "a") as f:
+                for batch in tile_loader:
+                    tiles, coords, vars = batch
+                    tiles = tiles.numpy()
+                    coords = coords.numpy()
+                    vars = vars.numpy()
+
+                    tile_nan_mask = np.isnan(tiles).any(axis=(1, 2, 3))  # shape: (N,)
+                    valid_mask = ~tile_nan_mask
+                    valid_tiles_ = tiles[valid_mask]
+                    valid_coords = coords[valid_mask]
+
+                    var_mask = np.where(vars != np.nan)
+                    var_list.extend(vars[var_mask])
+                    if "tiles" not in f:
+                        tile_shape = valid_tiles_[0].shape
+                        f.create_dataset(
+                            'tiles',
+                            shape=(0, *tile_shape),
+                            maxshape=(None, *tile_shape),
+                            dtype=valid_tiles_[0].dtype,
+                            chunks=True
+                        )
+                        f.create_dataset(
+                            'coords',
+                            shape=(0, 2),
+                            maxshape=(None, 2),
+                            dtype='int32',
+                            chunks=True
+                        )
+                    tiles_dataset = f['tiles']
+                    coords_dataset = f['coords']
+                    current_len = tiles_dataset.shape[0]
+                    new_len = current_len + len(valid_tiles_)
+                    tiles_dataset.resize((new_len, *tiles_dataset.shape[1:]))
+                    coords_dataset.resize((new_len, 2))
+                    tiles_dataset[current_len:new_len] = valid_tiles_
+                    coords_dataset[current_len:new_len] = valid_coords
+                coords_ = f["coords"][:]
+            x,y = zip(*coords_)
+            df_tiles = pd.DataFrame({"x":x, "y":y})
+            blurry_tiles = len(coords_)
 
 
-            df_tiles = pd.DataFrame(list(final))
-            df_tiles["original_mag"] = natural_magnification
-            df_tiles["scale"] = scale
-            df_tiles.to_csv(tiles_path, index=False)
-            blurry_tiles = len(metadata_list) if args.remove_blurry_tiles else None
-        except :
-            error.append((patient_id, path, "No tiles were saved.", "Tiling"))
-            summary = summary_()
-            summary.append("Error")
-            return summary, error
+    time_patches = time.time() - start_time_patches_user
+    time_patches_cpu = time.process_time() - start_time_patches_cpu
 
     if args.reconstruct_slide:
         reconstruct_slide(mask_.applied, tile_iterator.coordinates,
@@ -556,8 +623,7 @@ def preprocessing(path, patient_id, args):
                               tile_iterator.adjusted_size,
                               save_path= os.path.join(sample_path, "included_tiles_after_QC.png"))
 
-    time_patches = time.time() - start_time_patches_user
-    time_patches_cpu = time.process_time() - start_time_patches_cpu
+
     summary = summary_()
     summary.append("Processed")
 
