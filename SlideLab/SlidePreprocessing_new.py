@@ -550,12 +550,6 @@ def preprocessing(path, patient_id, args):
                         final.append(item)
                     elif item is not None and isinstance(item, float):
                         vars.append(item)
-
-
-                # final  = [item for item in metadata_list if item is not None]
-                # vars = [item for item in vars if item is not None]
-
-                print(final)
                 df_tiles = pd.DataFrame(list(final))
                 df_tiles["original_mag"] = natural_magnification
                 df_tiles["scale"] = scale
@@ -638,46 +632,49 @@ def preprocessing(path, patient_id, args):
 
     summary = summary_()
     summary.append("Processed")
-
-    # sanity check -> statistics for process do (1-2 examples)
     if args.normalize_staining:
-        QC_path = os.path.join(sample_path, "QC_pipeline")
-        os.makedirs(QC_path, exist_ok=True)
-        # choose random coordinate
-        non_blurry_coords = list(zip(df_tiles['x'], df_tiles['y']))
-        random_coord = non_blurry_coords[random.randint(0, len(non_blurry_coords) - 1)]
-        region = slide.read_region((random_coord[0], random_coord[1]), 0, (adjusted_size, adjusted_size)).convert(
-            'RGB').resize(
-            (desired_size, desired_size), Image.BILINEAR)
-        region.save(os.path.join(QC_path, "original_non_blurry.png"))
-        normalized_img = Image.fromarray(normalizeStaining(np.array(region)))
-        normalized_img.save(os.path.join(QC_path, "normalized_non_blurry.png"))
-        if args.remove_blurry_tiles:
-            # laplacian distribution
-            distributions = os.path.join(QC_path, "tile_distributions")
-            os.makedirs(distributions, exist_ok=True)
-            var_path = os.path.join(distributions, "Laplacian_variance.png")
-            plot_distribution(vars, var_path, args.blur_threshold)
-            coordin = [tuple(coord) for coord in coordinates]
-
-            # also get an example for QC sample of a blurry and a non-blurry tile (valid coordinates)
-            different_coords = list(set(coordin) - set(non_blurry_coords))
-            if different_coords:
-                i = 0
-                while i < 5:
-                    random_coord = different_coords[random.randint(0, len(different_coords) - 1)]
-                    region = slide.read_region((random_coord[0], random_coord[1]), 0,
-                                               (adjusted_size, adjusted_size)).convert(
+            QC_path = os.path.join(sample_path, "QC_pipeline")
+            os.makedirs(QC_path, exist_ok=True)
+            # choose random coordinate
+            non_blurry_coords = list(zip(df_tiles['x'], df_tiles['y']))
+            i = 0
+            while i <5:
+                    random_coord = non_blurry_coords[random.randint(0, len(non_blurry_coords) - 1)]
+                    region = slide.read_region((random_coord[0], random_coord[1]), 0, (adjusted_size, adjusted_size)).convert(
                         'RGB').resize(
                         (desired_size, desired_size), Image.BILINEAR)
-                    normalized_blurry = normalizeStaining(np.array(region))
-                    if normalized_blurry is not None:
-                        region.save(os.path.join(QC_path, "original_blurry.png"))
-                        normalized_img = Image.fromarray(normalized_blurry)
-                        normalized_img.save(os.path.join(QC_path, "normalized_blurry.png"))
+                    normalized_img = Image.fromarray(normalizeStaining(np.array(region)))
+                    if normalized_img is not None:
+                        normalized_img.save(os.path.join(QC_path, "normalized_non_blurry.png"))
+                        region.save(os.path.join(QC_path, "original_non_blurry.png"))
                         break
-                    i += 1
-            print("finished QC")
+                    i +=1
+    
+            if args.remove_blurry_tiles:
+                # laplacian distribution
+                distributions = os.path.join(QC_path, "tile_distributions")
+                os.makedirs(distributions, exist_ok=True)
+                var_path = os.path.join(distributions, "Laplacian_variance.png")
+                plot_distribution(vars, var_path, args.blur_threshold)
+                coordin = [tuple(coord) for coord in coordinates]
+    
+                # also get an example for QC sample of a blurry and a non-blurry tile (valid coordinates)
+                different_coords = list(set(coordin) - set(non_blurry_coords))
+                if different_coords:
+                    i = 0
+                    while i < 5:
+                        random_coord = different_coords[random.randint(0, len(different_coords) - 1)]
+                        region = slide.read_region((random_coord[0], random_coord[1]), 0,
+                                                   (adjusted_size, adjusted_size)).convert(
+                            'RGB').resize(
+                            (desired_size, desired_size), Image.BILINEAR)
+                        normalized_blurry = normalizeStaining(np.array(region))
+                        if normalized_blurry is not None:
+                            region.save(os.path.join(QC_path, "original_blurry.png"))
+                            normalized_img = Image.fromarray(normalized_blurry)
+                            normalized_img.save(os.path.join(QC_path, "normalized_blurry.png"))
+                            break
+                        i += 1
 
     return summary, error
 
