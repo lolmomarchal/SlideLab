@@ -61,7 +61,6 @@ class TileDataset(Dataset):
         return len(self.coordinates)
 
     def __getitem__(self, i):
-        var = None
         coord = self.coordinates[i]
         tile = np.array(self.slide.read_region((coord[0], coord[1]), 0,
                                                (self.adjusted_size, self.adjusted_size)).convert('RGB'))
@@ -76,5 +75,7 @@ class TileDataset(Dataset):
             blur, var = LaplaceFilter(tile)
             if blur:
                 return None, None, torch.tensor(var)
+            return torch.from_numpy(tile), torch.tensor(coord), torch.tensor(var)
 
+            
         return torch.from_numpy(tile), torch.tensor(coord), torch.tensor(0)
