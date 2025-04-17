@@ -168,7 +168,8 @@ def save_tiles_QC(coord, norm_tile, output_dir, patient_id, desired_size, desire
         return None
 
 
-def save_tiles_to_h5(queue, h5_file,var, remove_blurry, threshold):
+def save_tiles_to_h5(queue, h5_file,var, threshold,remove_blurry):
+    print(h5_file)
     tiles_list = []
     coords_list = []
 
