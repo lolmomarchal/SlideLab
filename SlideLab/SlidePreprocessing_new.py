@@ -168,9 +168,6 @@ def save_tiles_QC(coord, norm_tile, output_dir, patient_id, desired_size, desire
         return None
 
 
-import h5py
-import numpy as np
-
 def save_tiles_to_h5(queue, h5_file, var, threshold, remove_blurry):
     print(h5_file)
     tiles_list = []
@@ -184,73 +181,56 @@ def save_tiles_to_h5(queue, h5_file, var, threshold, remove_blurry):
         coord, norm_tile = item
         if remove_blurry:
             blur, var_ = LaplaceFilter(norm_tile, threshold)
-            if blur:
-                var.append(var_)
-                continue
             var.append(var_)
+            if blur:
+                continue
+        else:
+            var.append(None)
 
         tiles_list.append(norm_tile)
         coords_list.append(coord)
 
         if len(tiles_list) >= 64:
             with h5py.File(h5_file, 'a') as f:
-                # Create datasets if not exist
                 if 'tiles' not in f:
+                    tile_shape = tiles_list[0].shape
                     f.create_dataset(
                         'tiles',
-                        data=np.stack(tiles_list),
-                        maxshape=(None, *tiles_list[0].shape),
-                        chunks=True,
-                        dtype=tiles_list[0].dtype
+                        shape=(0, *tile_shape),
+                        maxshape=(None, *tile_shape),
+                        dtype=tiles_list[0].dtype,
+                        chunks=True
                     )
                     f.create_dataset(
                         'coords',
-                        data=np.stack(coords_list),
+                        shape=(0, 2),
                         maxshape=(None, 2),
-                        chunks=True,
-                        dtype=coords_list[0].dtype
+                        dtype='int32',
+                        chunks=True
                     )
-                else:
-                    tiles_dataset = f['tiles']
-                    coords_dataset = f['coords']
-                    # Resize and append
-                    curr_len = tiles_dataset.shape[0]
-                    new_len = curr_len + len(tiles_list)
-                    tiles_dataset.resize((new_len, *tiles_dataset.shape[1:]))
-                    coords_dataset.resize((new_len, 2))
-                    tiles_dataset[curr_len:new_len] = tiles_list
-                    coords_dataset[curr_len:new_len] = coords_list
-
+                tiles_dataset = f['tiles']
+                coords_dataset = f['coords']
+                current_len = tiles_dataset.shape[0]
+                new_len = current_len + len(tiles_list)
+                tiles_dataset.resize((new_len, *tiles_dataset.shape[1:]))
+                coords_dataset.resize((new_len, 2))
+                tiles_dataset[current_len:new_len] = tiles_list
+                coords_dataset[current_len:new_len] = coords_list
             tiles_list.clear()
             coords_list.clear()
 
-    # Save remaining tiles
+    # Save any remaining tiles
     if tiles_list:
         with h5py.File(h5_file, 'a') as f:
-            if 'tiles' not in f:
-                f.create_dataset(
-                    'tiles',
-                    data=np.stack(tiles_list),
-                    maxshape=(None, *tiles_list[0].shape),
-                    chunks=True,
-                    dtype=tiles_list[0].dtype
-                )
-                f.create_dataset(
-                    'coords',
-                    data=np.stack(coords_list),
-                    maxshape=(None, 2),
-                    chunks=True,
-                    dtype=coords_list[0].dtype
-                )
-            else:
-                tiles_dataset = f['tiles']
-                coords_dataset = f['coords']
-                curr_len = tiles_dataset.shape[0]
-                new_len = curr_len + len(tiles_list)
-                tiles_dataset.resize((new_len, *tiles_dataset.shape[1:]))
-                coords_dataset.resize((new_len, 2))
-                tiles_dataset[curr_len:new_len] = tiles_list
-                coords_dataset[curr_len:new_len] = coords_list
+            tiles_dataset = f['tiles']
+            coords_dataset = f['coords']
+            current_len = tiles_dataset.shape[0]
+            new_len = current_len + len(tiles_list)
+            tiles_dataset.resize((new_len, *tiles_dataset.shape[1:]))
+            coords_dataset.resize((new_len, 2))
+            tiles_dataset[current_len:new_len] = tiles_list
+            coords_dataset[current_len:new_len] = coords_list
+
 
 
 """
