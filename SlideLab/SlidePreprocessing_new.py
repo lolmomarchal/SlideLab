@@ -358,11 +358,11 @@ def preprocessing(path, patient_id, args):
 
         blur_threshold = args.blur_threshold if args.remove_blurry_tiles else None
         if args.output_format == "png":
-            num_gpu_workers = 3
+            num_gpu_workers = max(1, max_workers//4)
             num_saving_workers = (max_workers - num_gpu_workers) 
             tile_loader = DataLoader(tile_iterator,shuffle = False,num_workers = num_gpu_workers,
                                      pin_memory = True, batch_size = args.batch_size)
-            gpu_thread = threading.Thread(target=batch_norm, args=(tile_loader, save_queue, 16))
+            gpu_thread = threading.Thread(target=batch_norm, args=(tile_loader, save_queue, args.batch_size))
             gpu_thread.start()
             save_processes = []
             for _ in range(num_saving_workers):
