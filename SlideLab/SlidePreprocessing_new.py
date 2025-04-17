@@ -380,7 +380,10 @@ def preprocessing(path, patient_id, args):
 
         def batch_norm(loader, queue, max_streams = 16):
             streams = [torch.cuda.Stream() for _ in range(max_streams)]
-            for tiles, coords, _ in loader:
+            for batch in loader:
+                if batch is None:
+                    continue
+                tiles, coords, _ = batch
                 tiles = tiles.to("cuda", non_blocking = True)
                 chunk_size = min(max_streams, tiles.size(0))
                 for i in range(0, tiles.size(0), chunk_size):
