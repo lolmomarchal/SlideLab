@@ -77,4 +77,4 @@ class TileDataset(Dataset):
             if blur:
                 return None, None, torch.tensor(var)
 
-        return torch.from_numpy(tile), torch.tensor(coord), torch.tensor(var)
+        return torch.from_numpy(tile), torch.tensor(coord), torch.tensor(0)
