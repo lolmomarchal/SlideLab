@@ -340,7 +340,7 @@ def preprocessing(path, patient_id, args):
     tiles_dir = os.path.join(sample_path, "tiles")
     os.makedirs(tiles_dir, exist_ok=True)
     def collate_fn(batch):
-        batch = [b for b in batch if b is not None]
+        batch = [b for b in batch if b[0] is not None]
         if not batch:
             return None  # Handle empty batch safely if needed later
         tiles, coords, vars_ = zip(*batch)
