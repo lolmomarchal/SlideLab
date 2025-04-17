@@ -488,7 +488,10 @@ def preprocessing(path, patient_id, args):
             tile_loader = DataLoader(tile_iterator, shuffle = False, num_workers = max_workers//2 , collate_fn = collate_fn)
             def tile_loading(queue, data_loader, vars):
                 local_vars = []
-                for tiles, coords, var in data_loader:
+                for batch in data_loader:
+                    if batch is None:
+                        continue
+                    tiles, coords, var = batch
                     tiles = tiles.numpy()
                     coords = coords.numpy()
                     var = var.numpy()
