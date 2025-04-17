@@ -1,15 +1,20 @@
 # Tile Dataset
 import torch
 from torch.utils.data import Dataset
-from torchvision import datasets
-from torchvision.transforms import ToTensor
 import numpy as np
 import openslide
-from PIL import Image
+import cv2
+
+from TissueMask import is_tissue, get_region_mask, TissueMask
+from TileNormalization import normalizeStaining
+from TileQualityFilters import LaplaceFilter
+
+# ====== HELPER
 
 def best_size(desired_mag, natural_mag, desired_size) -> int:
     new_size = natural_mag / desired_mag
     return int(desired_size * new_size)
+
 
 
 def get_valid_coordinates(width, height, overlap, mask, size, scale, threshold):
@@ -25,50 +30,49 @@ def get_valid_coordinates(width, height, overlap, mask, size, scale, threshold):
     # valid coordinates according to mask
     valid_coords = [coord for coord in coordinates if
                     is_tissue(get_region_mask(mask, scale, coord, (size, size)), threshold=threshold)]
-    return total_cords, len(valid_coords), valid_coords
+    return total_cords, len(valid_coords), valid_coords, coordinates
+ # ================= MAIN + COLLATE
 
+def collate_fn(batch):
+    return [b for b in batch if b[0] is not None]
 
 class TileDataset(Dataset):
-    def __init__(self, slide, coordinates=None, mask=None, tissue_threshold=0.8, normalizer=None, size=256,
-                 magnification=20, overlap=1, adjusted_size = None):
-        self.normalizer = normalizer
+    def __init__(self, slide, coordinates=None, mask=None, tissue_threshold=0.8, size=256,
+                 magnification=20, overlap=1, adjusted_size=None, normalizer = None, remove_blurry = True):
         self.tissue_threshold = tissue_threshold
         self.size = size
         self.magnification = magnification
-        self.index = 0
-        try:
-            if type(slide) == str:
-                self.slide = openslide.OpenSlide(slide)
-            else:
-                self.slide = slide
-        except Exception as e:
-            print(f"Error opening Slide: {e}")
-        # mask
-        if mask is None:
-            self.mask = TissueMask(self.slide, threshold=tissue_threshold)
-        else:
-            self.mask = mask
-        if adjusted_size is None:
-            self.adjusted_size = best_size(magnification, self.mask.magnification, size)
-        else:
-            self.adjusted_size = adjusted_size
+        self.normalizer = normalizer
+        self.remove_blurry = remove_blurry
+
+        self.slide = openslide.OpenSlide(slide) if isinstance(slide, str) else slide
+        self.mask = mask if mask is not None else TissueMask(self.slide, threshold=tissue_threshold)
+        self.adjusted_size = adjusted_size or best_size(magnification, self.mask.magnification, size)
         self.overlap = overlap
         if coordinates is not None:
             self.coordinates = coordinates
         else:
-            # valid coords
             w, h = self.slide.dimensions
-            all_coords, valid_coordinates, self.coordinates = get_valid_coordinates(w, h, overlap,
-                                                                                    self.mask.mask,
-                                                                                    self.adjusted_size,                                                                          self.mask.SCALE,                                                                                threshold=tissue_threshold)
+            _, _, self.coordinates, _ = get_valid_coordinates(
+                w, h, overlap, self.mask.mask, self.adjusted_size, self.mask.SCALE, threshold=tissue_threshold
+            )
 
     def __len__(self):
         return len(self.coordinates)
 
-
     def __getitem__(self, i):
+        var = -1
         coord = self.coordinates[i]
-        tile = self.slide.read_region((coord[0], coord[1]), 0, (self.adjusted_size, self.adjusted_size)).convert(
-            'RGB').resize(
-            (self.size, self.size), Image.BILINEAR)
-        return torch.from_numpy(np.array(tile)), torch.tensor(coord)
+        tile = np.array(self.slide.read_region((coord[0], coord[1]), 0,
+                                               (self.adjusted_size, self.adjusted_size)).convert('RGB'))
+        if self.adjusted_size != self.size:
+            tile = cv2.resize(tile, (self.size, self.size), interpolation=cv2.INTER_AREA)
+
+        if self.normalizer is not None:
+            tile = normalizeStaining(tile)
+            if tile is None:
+                return None, None, None
+        if self.remove_blurry:
+            blur, var = LaplaceFilter(tile)
+
+        return torch.from_numpy(tile), torch.tensor(coord), torch.tensor(var)
