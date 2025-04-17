@@ -146,6 +146,7 @@ def save_tiles(coord, norm_tile, output_dir, patient_id, desired_size, desired_m
 
 def save_tiles_QC(coord, norm_tile, output_dir, patient_id, desired_size, desired_mag, threshold):
     try:
+      
         norm_tile = norm_tile
         blurry, var = LaplaceFilter(norm_tile,var_threshold = threshold)
         if not blurry:
@@ -321,7 +322,8 @@ def preprocessing(path, patient_id, args):
             size=desired_size, magnification=desired_magnification, 
             adjusted_size=adjusted_size, overlap=overlap
         )
-        def save_worker(output_dir, patient_id, desired_size, desired_mag, metadata_list, blur_threshold=None,):
+        def save_worker(save_queue, output_dir, patient_id, desired_size, desired_mag, metadata_list, blur_threshold=None,):
+
             while True:
                 item = save_queue.get()
                 if item is None:
@@ -366,7 +368,7 @@ def preprocessing(path, patient_id, args):
             for _ in range(num_saving_workers):
                 p = multiprocessing.Process(
                     target=save_worker,
-                    args=(save_queue, os.path.join(sample_path, "tiles"), patient_id, desired_size, desired_magnification,blur_threshold)
+                    args=(save_queue, os.path.join(sample_path, "tiles"), patient_id, desired_size, desired_magnification,metadata_list,blur_threshold)
                 )
                 p.start()
                 save_processes.append(p)
