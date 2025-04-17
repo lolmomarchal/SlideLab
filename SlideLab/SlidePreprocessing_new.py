@@ -168,7 +168,10 @@ def save_tiles_QC(coord, norm_tile, output_dir, patient_id, desired_size, desire
         return None
 
 
-def save_tiles_to_h5(queue, h5_file,var, threshold,remove_blurry):
+import h5py
+import numpy as np
+
+def save_tiles_to_h5(queue, h5_file, var, threshold, remove_blurry):
     print(h5_file)
     tiles_list = []
     coords_list = []
@@ -185,24 +188,70 @@ def save_tiles_to_h5(queue, h5_file,var, threshold,remove_blurry):
                 var.append(var_)
                 continue
             var.append(var_)
+
         tiles_list.append(norm_tile)
         coords_list.append(coord)
+
         if len(tiles_list) >= 64:
             with h5py.File(h5_file, 'a') as f:
-                tiles_dataset = f.require_dataset('tiles', shape=(len(tiles_list), *tiles_list[0].shape), dtype=tiles_list[0].dtype)
-                coords_dataset = f.require_dataset('coords', shape=(len(coords_list), 2), dtype=coords_list[0].dtype)
-                start_idx = tiles_dataset.shape[0]
-                tiles_dataset[start_idx:start_idx+len(tiles_list)] = tiles_list
-                coords_dataset[start_idx:start_idx+len(coords_list)] = coords_list
+                # Create datasets if not exist
+                if 'tiles' not in f:
+                    f.create_dataset(
+                        'tiles',
+                        data=np.stack(tiles_list),
+                        maxshape=(None, *tiles_list[0].shape),
+                        chunks=True,
+                        dtype=tiles_list[0].dtype
+                    )
+                    f.create_dataset(
+                        'coords',
+                        data=np.stack(coords_list),
+                        maxshape=(None, 2),
+                        chunks=True,
+                        dtype=coords_list[0].dtype
+                    )
+                else:
+                    tiles_dataset = f['tiles']
+                    coords_dataset = f['coords']
+                    # Resize and append
+                    curr_len = tiles_dataset.shape[0]
+                    new_len = curr_len + len(tiles_list)
+                    tiles_dataset.resize((new_len, *tiles_dataset.shape[1:]))
+                    coords_dataset.resize((new_len, 2))
+                    tiles_dataset[curr_len:new_len] = tiles_list
+                    coords_dataset[curr_len:new_len] = coords_list
+
             tiles_list.clear()
             coords_list.clear()
+
+    # Save remaining tiles
     if tiles_list:
         with h5py.File(h5_file, 'a') as f:
-            tiles_dataset = f.require_dataset('tiles', shape=(len(tiles_list), *tiles_list[0].shape), dtype=tiles_list[0].dtype)
-            coords_dataset = f.require_dataset('coords', shape=(len(coords_list), 2), dtype=coords_list[0].dtype)
-            start_idx = tiles_dataset.shape[0]
-            tiles_dataset[start_idx:start_idx+len(tiles_list)] = tiles_list
-            coords_dataset[start_idx:start_idx+len(coords_list)] = coords_list
+            if 'tiles' not in f:
+                f.create_dataset(
+                    'tiles',
+                    data=np.stack(tiles_list),
+                    maxshape=(None, *tiles_list[0].shape),
+                    chunks=True,
+                    dtype=tiles_list[0].dtype
+                )
+                f.create_dataset(
+                    'coords',
+                    data=np.stack(coords_list),
+                    maxshape=(None, 2),
+                    chunks=True,
+                    dtype=coords_list[0].dtype
+                )
+            else:
+                tiles_dataset = f['tiles']
+                coords_dataset = f['coords']
+                curr_len = tiles_dataset.shape[0]
+                new_len = curr_len + len(tiles_list)
+                tiles_dataset.resize((new_len, *tiles_dataset.shape[1:]))
+                coords_dataset.resize((new_len, 2))
+                tiles_dataset[curr_len:new_len] = tiles_list
+                coords_dataset[curr_len:new_len] = coords_list
+
 
 """
 - needs path to slide
