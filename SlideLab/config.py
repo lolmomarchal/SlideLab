@@ -27,6 +27,15 @@ def create_parser(config=None):
     parser.add_argument("-ov", "--overlap", type=int, default=defaults.get('overlap', 1),
                         help="Overlap between tiles (default: %(default)s)")
 
+
+    parser.add_argument("--desired_mpp", type=float, default=defaults.get('desired_mpp'),
+                        help="Desired reference mpp (default: %(default)s)")
+    parser.add_argument("--sizing_scale", type=str, default=defaults.get("sizing_scale"),
+                        help="To choose either mpp or magnification, for more accurate results between scanners, use mpp")
+
+    parser.add_argument("--set_standard_magnification", type=float, default=defaults.get("set_standard_magnification"))
+    parser.add_argument("--set_standard_mpp", type=float, default=defaults.get("set_standard_mpp"))
+
     parser.add_argument("-rb", "--remove_blurry_tiles", action="store_true", default=defaults.get('remove_blurry_tiles', False),
                         help="flag to enable usage of the laplacian filter to remove blurry tiles")
     parser.add_argument("-n", "--normalize_staining", action="store_true", default=defaults.get('normalize_staining', False),
@@ -134,12 +143,23 @@ def main():
     input_path: null  # path to input file/directory
     output_path: null  # path to output directory
     
-    # tile customization
-    desired_size: 256  # Desired size of the tiles
-    desired_magnification: 20  # Desired magnification level
-    overlap: 1  # Overlap between tiles
+    # tile customization 
+    desired_size: 256  # Desired size of the tiles in pixels 
+    overlap: 1
+    output_format: png
+    
+    # resolution scales
+    # for resolutions scales either desired_magnification or desired_mpp should have a value
+    sizing_scale: magnification # options: magnification, mpp (choose mpp for reproducibility between scanner brands)
+    desired_magnification: 20 
+    desired_mpp: 0.5
+    
+    # if there are errors with a slide having no resolutions in its file:
+    set_standard_magnification: null
+    set_standard_mpp: null
     
     # preprocessing processes customization
+    
     remove_blurry_tiles: false  # flag to enable usage of the laplacian filter to remove blurry tiles
     normalize_staining: false  # Flag to enable normalization of tiles
     encode: false  # Flag to encode tiles and create associated .h5 file

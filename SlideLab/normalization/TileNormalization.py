@@ -3,7 +3,36 @@ import warnings
 import torch
 warnings.filterwarnings("ignore", category=UserWarning)
 
-# if gpu not available, use numpy vers
+
+class Macenko:
+    def __init__(self, device = "cpu"):
+        # initiate constants
+
+        self.device = device
+        self.Io = 240
+        self.alpha = 1
+        self.beta = 0.15
+
+        # stain concentrations
+        if self.device == "cpu":
+            self.HERef = np.array([[0.5626, 0.2159],
+                                   [0.7201, 0.8012],
+                                   [0.4062, 0.5581]])
+            self.maxCRef = np.array([1.9705, 1.0308])
+        else:
+            self.HERef = torch.tensor([[0.5626, 0.2159],
+                                  [0.7201, 0.8012],
+                                  [0.4062, 0.5581]], dtype=torch.float32, device=self.device)
+
+            self.maxCRef = torch.tensor([1.9705, 1.0308], dtype=torch.float32, device=self.device)
+
+
+
+
+########## MACKENCO ####################
+
+
+
 def normalizeStaining(tile, Io=240, alpha=1, beta=0.15):
     try:
         with warnings.catch_warnings():
@@ -116,3 +145,6 @@ def normalizeStaining_torch(tile, Io=240, alpha=1, beta=0.15, device=None):
 
     except (RuntimeError, ValueError, FloatingPointError):
         return None
+#### REINHARD
+
+### VALDEHANE

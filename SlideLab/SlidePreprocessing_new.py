@@ -20,12 +20,11 @@ torch.multiprocessing.set_sharing_strategy('file_system')
 # classes/functions
 
 import Reports, SlideEncoding
-from TileNormalization import normalizeStaining, normalizeStaining_torch
+from SlideLab.normalization.TileNormalization import normalizeStaining, normalizeStaining_torch
 from TileQualityFilters import LaplaceFilter, plot_distribution
 from TissueMask import is_tissue, get_region_mask, TissueMask
-from tiling.TileIterator import TileIterator
 from tiling.TileDataset import TileDataset
-from VisulizationUtils import reconstruct_slide
+from SlideLab.utils.VisulizationUtils import reconstruct_slide
 from config import get_args_from_config
 
 

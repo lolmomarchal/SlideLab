@@ -6,7 +6,7 @@ import openslide
 import cv2
 
 from TissueMask import is_tissue, get_region_mask, TissueMask
-from TileNormalization import normalizeStaining
+from normalization.TileNormalization import normalizeStaining
 from TileQualityFilters import LaplaceFilter
 
 # ====== HELPER
@@ -77,4 +77,4 @@ class TileDataset(Dataset):
             if blur:
                 return None, None, torch.tensor(var)
 
-        return torch.from_numpy(tile), torch.tensor(coord), torch.tensor(var)
+        return torch.from_numpy(tile), torch.tensor(coord), torch.tensor(0)

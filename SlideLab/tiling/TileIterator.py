@@ -1,6 +1,6 @@
 import numpy as np
 import openslide
-from TileNormalization import normalizeStaining
+from normalization.TileNormalization import normalizeStaining
 from PIL import Image
 from TissueMask import is_tissue, get_region_mask, TissueMask
 
