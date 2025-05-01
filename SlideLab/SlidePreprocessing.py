@@ -454,7 +454,7 @@ def preprocessing(path, patient_id, args):
             processing_threads = []
             import itertools
             for i in range(processing_workers):
-                p = multiprocessing.Proccess(target=worker_h5, args=( index_queue,
+                p = multiprocessing.Process(target=worker_h5, args=( index_queue,
                                                                      itertools.tee(tile_iterator), patient_id,
                                                                     results_list, var_list, args.normalize_staining,
                                                                     args.remove_blurry_tiles, args.blur_threshold,
