@@ -184,7 +184,7 @@ def save_h5_cpu(save_queue, h5_file, batch_size=64):
                 coords_list.clear()
         # write any remaining in list
 
-    if tiles_dataset:
+    if tiles_list:
         with h5py.File(h5_file, "a") as f:
             tiles_dataset = f["tiles"]
             coords_dataset = f["coords"]
