@@ -129,6 +129,9 @@ def normalizeStaining_torch(tile, Io=240, alpha=1, beta=0.15, device=None):
         OD = -torch.log(tile / Io)
 
         ODhat = OD[(OD >= beta).all(dim=1)]
+        n_obs = ODhat.shape[1]
+        if n_obs <=1:
+            return None
 
         cov_matrix = torch.cov(ODhat.T)
         eigvals, eigvecs = torch.linalg.eigh(cov_matrix)
