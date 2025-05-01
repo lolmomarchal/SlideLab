@@ -55,7 +55,7 @@ def get_eig_standalone(x):
 
 @numba.njit
 def calculate_that_standalone(v1, v2):
-    return v1.dot(v2[:, 1:3])
+    return v1.dot(np.ascontiguousarray(v2[:, 1:3]))
 
 @numba.njit
 def calculate_percentiles_standalone(phi, alpha):
