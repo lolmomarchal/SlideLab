@@ -7,6 +7,33 @@ from skimage import morphology
 import openslide
 import numba
 import time
+from skimage.filters import threshold_otsu # pylint: disable=no-name-in-module
+from scipy.signal import convolve2d
+
+def he_otsu(image: np.ndarray,blur_kernel_width: int = 0,nbins: int = 256,hist = None
+) :
+
+    red_channel = image[:, :, 0].astype(float)
+    green_channel = image[:, :, 1].astype(float)
+    blue_channel = image[:, :, 2].astype(float)
+
+    red_to_green_mask = np.maximum(red_channel - green_channel, 0)
+    blue_to_green_mask = np.maximum(blue_channel - green_channel, 0)
+
+    tissue_heatmap = red_to_green_mask * blue_to_green_mask
+
+    threshold = threshold_otsu(
+        red_to_green_mask * blue_to_green_mask, nbins=nbins, hist=hist
+    )
+    mask = tissue_heatmap > threshold
+    if blur_kernel_width != 0:
+        blur_kernel = np.ones((blur_kernel_width, blur_kernel_width))
+        mask = convolve2d(mask, blur_kernel, mode = "same")
+        mask = mask > 0
+        # mask = mask > 0
+
+    return mask, threshold
+
 
 
 @numba.njit
@@ -46,7 +73,7 @@ class TissueMask:
         self.red_pen_thresh =red_pen_thresh
         self.blue_pen_thresh = blue_pen_thresh
         self.slide = openslide.OpenSlide(slide) if isinstance(slide, str) else slide
-        self.SCALE = SCALE or int(self.slide.level_downsamples[-1])
+        self.SCALE = SCALE or min(64,int(self.slide.level_downsamples[-1]))
         self.thumbnail = np.array(
             self.slide.get_thumbnail((self.slide.dimensions[0] // self.SCALE, self.slide.dimensions[1] // self.SCALE))
         )
@@ -100,13 +127,14 @@ class TissueMask:
         :return: otsu threshold mask (bool) of self.thumbnail
         """
         # start = time.process_time()
-        grayscale_img = cv2.cvtColor(self.thumbnail, cv2.COLOR_BGR2GRAY)
-        clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=tile_grid_size)
-        equalized_img = clahe.apply(grayscale_img)
-        img_inverted = 255 - equalized_img
-        _, threshold_img = cv2.threshold(img_inverted, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        # grayscale_img = cv2.cvtColor(self.thumbnail, cv2.COLOR_BGR2GRAY)
+        # clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=tile_grid_size)
+        # equalized_img = clahe.apply(grayscale_img)
+        # img_inverted = 255 - equalized_img
+        # _, threshold_img = cv2.threshold(img_inverted, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        threshold_img, _ = he_otsu(self.thumbnail)
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_size, kernel_size))
-        threshold_img = cv2.morphologyEx(threshold_img, cv2.MORPH_CLOSE, kernel)
+        threshold_img = cv2.morphologyEx(threshold_img.astype(np.uint8), cv2.MORPH_CLOSE, kernel)
         ##print(f"otsu {time.process_time()-start}")
         return _, threshold_img.astype(bool)
 
@@ -195,7 +223,7 @@ class TissueMask:
         t_hard, t_soft = self.find_thresholds(counts, thresholds, alpha, beta)
     
         fold_mask = self.apply_thresholds(d_img, t_soft, t_hard)
-        fold_mask = self.remove_small_holes(fold_mask, min_size = 64, kernel_size = 2)
+        fold_mask = self.remove_small_holes(fold_mask, min_size = min_size, kernel_size = 2)
         return ~fold_mask.astype(bool)
 
     
@@ -211,7 +239,6 @@ class TissueMask:
             "filter_grays": self.filter_grays,
             "tissue_folds": self.detect_tissue_folds
         }
-
         # Initialize combined mask with whole_slide if present, else with the first method
         first_method = method_dict[mask_methods[0]]
         combined_mask = first_method().astype(np.uint8)
@@ -221,8 +248,6 @@ class TissueMask:
             mask = method_dict[mask_methods[i]]().astype(bool)
             combined_mask = np.logical_and(combined_mask, mask)
         return combined_mask
-
-    # Pen Filters
 
     # Blue Pen Filter
     def blue_filter(self, img_array, thresholds):
@@ -430,8 +455,8 @@ class TissueMask:
         combined_mask = self.remove_small_holes(combined_mask)
         combined_mask = self.remove_small_holes_positive_region(combined_mask, default=True)
 
-        kernel = np.ones((5, 5), np.uint8)
-        combined_mask = cv2.dilate(combined_mask.astype(np.uint8), kernel, iterations=1).astype(bool)
+        # kernel = np.ones((5, 5), np.uint8)
+        # combined_mask = cv2.dilate(combined_mask.astype(np.uint8), kernel, iterations=1).astype(bool)
         applied_mask = np.copy(self.thumbnail)
         applied_mask[combined_mask == 0] = 0
         if self.result_path is not None:
