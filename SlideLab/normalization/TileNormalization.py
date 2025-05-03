@@ -4,8 +4,7 @@ import torch
 import numba
 warnings.filterwarnings("ignore", category=UserWarning)
 
-
-@numba.njit
+@numba.jit(nopython=True)
 def process_OD_standalone(OD, vMin, vMax, w, h, Io, HERef, maxCRef):
     if vMin[0] > vMax[0]:
         HE = np.stack((vMin[:, 0], vMax[:, 0])).T
@@ -27,7 +26,7 @@ def process_OD_standalone(OD, vMin, vMax, w, h, Io, HERef, maxCRef):
     Inorm = Io * np.exp(-stain_matrix)
     return Inorm
 
-@numba.njit
+@numba.jit(nopython=True)
 def percentile_numba(arr, q):
     arr_sorted = np.sort(arr)
     n = len(arr_sorted)
@@ -36,7 +35,7 @@ def percentile_numba(arr, q):
     high = int(np.ceil(rank))
     weight = rank - low
     return arr_sorted[low] * (1 - weight) + arr_sorted[high] * weight
-@numba.njit
+@numba.jit(nopython=True)
 def cov_numba_standalone(x):
     n_vars, n_obs = x.shape
     means = np.zeros((n_vars, 1))
@@ -48,26 +47,26 @@ def cov_numba_standalone(x):
     deviations = x - means
     cov_matrix = (deviations @ deviations.T) / (n_obs - 1)
     return cov_matrix
-@numba.njit
+@numba.jit(nopython=True)
 def get_eig_standalone(x):
     eigval, eigvec = np.linalg.eigh(x)
     return eigval, eigvec
 
-@numba.njit
+@numba.jit(nopython=True)
 def calculate_that_standalone(v1, v2):
-    return v1.dot(np.ascontiguousarray(v2[:, 1:3]))
+    return np.ascontiguousarray(v1).dot(np.ascontiguousarray(v2[:, 1:3]))
 
-@numba.njit
+@numba.jit(nopython=True)
 def calculate_percentiles_standalone(phi, alpha):
     minPhi = percentile_numba(phi, alpha)
     maxPhi = percentile_numba(phi, 100 - alpha)
     return minPhi, maxPhi
-@numba.njit
+@numba.jit(nopython=True)
 def vmin_vmax_standalone(V, minPhi, maxPhi):
-    v1 = np.dot(V, np.array([np.cos(minPhi), np.sin(minPhi)]).T)
-    v2 = np.dot(V, np.array([np.cos(maxPhi), np.sin(maxPhi)]).T)
+    V = np.ascontiguousarray(V)
+    v1 = np.dot(V, np.ascontiguousarray(np.array([np.cos(minPhi), np.sin(minPhi)]).T))
+    v2 = np.dot(V, np.ascontiguousarray(np.array([np.cos(maxPhi), np.sin(maxPhi)]).T))
     return v1.reshape(-1,1), v2.reshape(-1,1)
-
 
 
 
@@ -81,9 +80,13 @@ def normalizeStaining(tile, Io=240, alpha=1, beta=0.15):
                               [0.7201, 0.8012],
                               [0.4062, 0.5581]])
             maxCRef = np.array([1.9705, 1.0308])
+            maxCRef = np.ascontiguousarray(maxCRef)
+
+            HERef = np.ascontiguousarray(HERef)
 
             h, w, c = tile.shape
             tile_np = tile.cpu().numpy() if torch.is_tensor(tile) else tile
+            tile_np = np.ascontiguousarray(tile_np)
             tile_np = tile_np.reshape((-1, 3)).astype(float)
 
             tile_np[tile_np == 0] = 1
@@ -91,10 +94,8 @@ def normalizeStaining(tile, Io=240, alpha=1, beta=0.15):
 
             ODhat = OD[~np.any(OD < beta, axis=1)]
 
-            cov_ODhat = cov_numba_standalone(ODhat.T)
-
+            cov_ODhat = np.cov(ODhat.T)
             eigvals, eigvecs = get_eig_standalone(cov_ODhat)
-
             That = calculate_that_standalone(ODhat, eigvecs)
 
             phi = np.arctan2(That[:, 1], That[:, 0])

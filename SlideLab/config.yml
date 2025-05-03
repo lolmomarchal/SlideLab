@@ -1,8 +1,8 @@
 # input/output
 #    input_path: /home/lolmomarchal/Master_notebooks/figure_purposes/DiceScores # path to input file/directory
 #    output_path: /mnt/c/Users/loren/Downloads/DiceScores_processed_slidelab
-    input_path: /mnt/c/Users/loren/Downloads/Camelyon16/images/normal_037.tif
-    output_path: /mnt/c/Users/loren/Downloads/Camelyon16/preprocessing_FUCK/normal_037.tif
+    input_path: /mnt/c/Users/loren/Downloads/Camelyon16/images/normal_039.tif
+    output_path: /mnt/c/Users/loren/Downloads/Camelyon16/preprocessing_FUCK2/
     
     # tile customization 
     desired_size: 256  # Desired size of the tiles in pixels 
