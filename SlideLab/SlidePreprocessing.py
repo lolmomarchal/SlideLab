@@ -490,7 +490,7 @@ def preprocessing(path, patient_id, args):
     if "x" not in df_tiles.columns:
         error.append((patient_id, path, f"No tiles were saved. Please consider lowering the tissue threshold from {args.tissue_threshold}",
                       "Slide Tiling"))
-        return summary, errror
+        return summary, error
         
 
     # additional things like slide reconstruction + QC folder 
