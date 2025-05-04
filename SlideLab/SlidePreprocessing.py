@@ -480,6 +480,20 @@ def preprocessing(path, patient_id, args):
             df_tiles.to_csv(tiles_path, index=False)
 
         blurry_tiles = len(results_) if args.remove_blurry_tiles else None
+    
+
+
+    time_patches = time.time() - start_time_patches_user
+    time_patches_cpu = time.process_time() - start_time_patches_cpu
+    summary = summary_()
+    summary.append("Processed")
+    if "x" not in df_tiles.columns:
+        error.append((patient_id, path, f"No tiles were saved. Please consider lowering the tissue threshold from {args.tissue_threshold}",
+                      "Slide Tiling"))
+        return summary, errror
+        
+
+    # additional things like slide reconstruction + QC folder 
     if args.reconstruct_slide:
         try:
             reconstruct_slide(mask_.applied, tile_iterator.coordinates,
@@ -498,12 +512,8 @@ def preprocessing(path, patient_id, args):
             except Exception as e:
                 error.append((patient_id, path, e, "Reconstructing slide"))
 
-    time_patches = time.time() - start_time_patches_user
-    time_patches_cpu = time.process_time() - start_time_patches_cpu
-    summary = summary_()
-    summary.append("Processed")
-
     # sanity check -> statistics for process do (1-2 examples)
+    
     if args.normalize_staining:
         QC_path = os.path.join(sample_path, "QC_pipeline")
         os.makedirs(QC_path, exist_ok=True)
