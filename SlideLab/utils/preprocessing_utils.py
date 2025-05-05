@@ -186,6 +186,18 @@ def save_h5_cpu(save_queue, h5_file, batch_size=64):
 
     if tiles_list:
         with h5py.File(h5_file, "a") as f:
+            # if for some reason never created the dataset (sample tiles < batch_size)
+            if "tiles" not in f:
+                tile_shape = tiles_list[0].shape
+                f.create_dataset("tiles", shape=(0, *tile_shape),
+                                         maxshape=(None, *tile_shape),
+                                         dtype=tiles_list[0].dtype, chunks=True)
+                coord_shape = coords_list[0].shape
+                f.create_dataset("coords", shape=(0, 2),
+                                         maxshape=(None, 2),
+                                         dtype="int32",
+                                         chunks=True)
+                
             tiles_dataset = f["tiles"]
             coords_dataset = f["coords"]
             current_len = tiles_dataset.shape[0]
