@@ -34,16 +34,14 @@
 SlideLab is a preprocessing pipeline to preprocess hematoxylin and eosin (H&E) Whole Slide Images (WSI) for computational pathology applications. This script including masking, tiling, normalization, quality checks, encoding, and optional whole slide reconstruction after tiling. It can be used as a customizable pipeline for mass WSI processing or to directly call functions to perform specific tasks. Please refer to the [arguments](#arguments) to see the potential options. As a pipeline, it is designed to ensure that if stopped for any reason, you will be able to continue at the last step that was completed. It also includes both an error report (for any error that may occur and the location in the pipeline where occurred) and a summary report with statistics like % of tissue and time taken to process the WSI.
 
 
-![slidelab_workflow](https://github.com/user-attachments/assets/5ec85991-6ed8-435a-b888-4b3d9304845d)
+![slidelab_workflow](https://github.com/user-attachments/assets/1e89103a-e79b-484d-818f-17cfa828380d)
 
 # Preprocessing Steps
 
 ### Masking
 SlideLab uses several methods to filter out artifacts such as pen marks and blots from slides and segment tissue sections according to adjustable threshold. Thresholds like the tissue percentage in a tile is used to select candidate tiles and can be adjusted. To see parameters associated with masking refer to [masking params](#Thresholds) The hematoxylin and eosin otsu adaptation was obtained from Schreiber et. al [4]. 
 
-<img src="https://github.com/user-attachments/assets/1542dfdc-9092-4722-bb7f-b384f32c9105" alt="Image 1" width="500" height="300">
-<img src="https://github.com/user-attachments/assets/094332ae-ec20-47c5-a08c-92af1568adf0" alt="Image 2" width="500" height="300">
-<img src="https://github.com/user-attachments/assets/51e1883e-f2f7-4da8-9806-134d240ff126" alt="Image 3" width="500" height="300">
+<img width="3000" height="2722" alt="tissuethresholding" src="https://github.com/user-attachments/assets/c60b2d40-4a62-4ce1-accf-466958ccd9e1" />
 
 
 
