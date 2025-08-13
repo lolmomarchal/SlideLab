@@ -832,6 +832,8 @@ def main():
 
     if not os.path.exists(input_path):
         raise FileNotFoundError(f"The file '{input_path}' does not exist.")
+    if args.get("output_format") == "null":
+        args["output_format"] = None 
 
     # making output directory
     if not os.path.exists(output_path):
