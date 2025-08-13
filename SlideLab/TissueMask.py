@@ -117,7 +117,7 @@ class TissueMask:
         self.threshold = threshold
         self.result_path = result_path
         self.otsu = self.otsu_mask_threshold()[1]
-        self.mask, self.applied = self.save_original_with_mask()
+        self.mask = self.save_original_with_mask()
 
     def metadata(self):
         """Retrieves the different metadata for the Tissue Mask
@@ -495,7 +495,11 @@ class TissueMask:
         applied_mask[combined_mask == 0] = 0
         if self.result_path is not None:
             plt.imsave(os.path.join(self.result_path, "original_with_mask.png"), applied_mask)
-        return combined_mask, applied_mask
+        return combined_mask
+    def get_applied_mask(self):
+        applied_mask = np.copy(self.thumbnail)
+        applied_mask[self.combined_mask == 0] = 0
+        return applied_mask
 
     def get_region_mask(self, original_size, size):
         mask_region_location = (original_size[0] // self.SCALE, original_size[1] // self.SCALE)

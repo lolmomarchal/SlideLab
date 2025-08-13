@@ -7,7 +7,7 @@
     # tile customization 
     desired_size: 256  # Desired size of the tiles in pixels
     overlap: 1
-    output_format: h5
+    output_format: png
     
     # resolution scales
     # for resolutions scales either desired_magnification or desired_mpp should have a value
@@ -23,8 +23,8 @@
     
     remove_blurry_tiles: true  # flag to enable usage of the laplacian filter to remove blurry tiles
     normalize_staining: macenko  # null if no norm
-    encode: true  # Flag to encode tiles and create associated .h5 file
-    reconstruct_slide: false  # reconstruct slide
+    encode: false  # Flag to encode tiles and create associated .h5 file
+    reconstruct_slide: true  # reconstruct slide
         
     # encoding customizations
     extract_high_quality: false  # extract high quality

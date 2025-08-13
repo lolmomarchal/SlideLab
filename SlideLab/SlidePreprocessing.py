@@ -271,6 +271,7 @@ class SlidePreprocessing:
         adjusted_size = tuple(map(int, adjusted_size))
         # get candidate patches
         coords_data, coord_time = self._get_valid_coordinates((width, height), adjusted_size, mask, scale)
+        del mask
 
         time_stats['coordinates'] = coord_time['wall']
         time_stats['coordinates_cpu'] = coord_time['cpu']
@@ -283,7 +284,7 @@ class SlidePreprocessing:
             return slide, coords_data["valid_coordinates"], mask_, magnification, adjusted_size, summary, error
 
         tile_iterator = self.iterator(
-            slide, coordinates=coords_data["valid_coordinates"], mask=mask, normalizer=None,
+            slide, coordinates=coords_data["valid_coordinates"], mask=mask_, normalizer=None,
             size=self.config.get("desired_size"), magnification=self.config.get("desired_magnification"),
             adjusted_size=adjusted_size, overlap=self.config.get('overlap')
         )
@@ -595,7 +596,7 @@ class SlidePreprocessing:
         if self.config.get('reconstruct_slide'):
             try:
                 reconstruct_slide(
-                    mask_obj.applied, coordinates, all_coords,
+                    mask_obj.get_applied_mask(), coordinates, all_coords,
                     mask_obj.SCALE, adjusted_size,
                     save_path=os.path.join(sample_path, "included_tiles.png")
                 )
@@ -604,7 +605,7 @@ class SlidePreprocessing:
                     try:
                         valid_coords = np.array([[x, y] for x, y in zip(df_tiles.x.values, df_tiles.y.values)])
                         reconstruct_slide(
-                            mask_obj.applied, valid_coords, all_coords,
+                            mask_obj.get_applied_mask(), valid_coords, all_coords,
                             mask_obj.SCALE, adjusted_size,
                             save_path=os.path.join(sample_path, "included_tiles_after_QC.png")
                         )
@@ -918,6 +919,7 @@ def main():
 
             t.update(1)
 
+    # patient_files_encoded(patient_path)
     # patient_files_encoded(patient_path)
     report_instance = Reports.Reports([[]], [[]], output_path)
     report_instance.summary_report_update_encoding(encoding_times)
