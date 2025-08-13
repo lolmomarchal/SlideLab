@@ -776,7 +776,7 @@ def parse_args():
                         help="flag to not save tiles. Choosing this option will lead to automatic encoding.")
     parser.add_argument("-rb", "--remove_blurry_tiles", action="store_true",
                         help="flag to enable usage of the laplacian filter to remove blurry tiles")
-    parser.add_argument("-n", "--normalize_staining", action="store_true",
+    parser.add_argument("-n", "--normalize_staining", type=str,default=None, 
                         help="Flag to enable normalization of tiles")
     parser.add_argument("-e", "--encode", action="store_true",
                         help="Flag to encode tiles and create associated .h5 file")
