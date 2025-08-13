@@ -1,10 +1,5 @@
-import pandas as pd
 from PIL import Image
-import matplotlib.pyplot as plt
-import numpy as np
-
-
-def reconstruct_slide(image,included_coords,all_coords, scale, adjusted_size, line_thickness = 1, save_path = None):
+def reconstruct_slide(image,included_coords,all_coords, scale, adjusted_size, line_thickness = 1, save_path = None, applied = True):
     step_size = adjusted_size//scale
     mask_ = image.copy()
     for item in all_coords:
@@ -20,7 +15,8 @@ def reconstruct_slide(image,included_coords,all_coords, scale, adjusted_size, li
             mask_[y_scaled:y_scaled+step_size, x_scaled-line_thickness:x_scaled] = 255
             mask_[y_scaled:y_scaled+step_size, x_scaled+step_size-line_thickness:x_scaled+step_size] = 255
         else:
-            mask_[y_scaled:y_scaled+step_size, x_scaled:x_scaled+step_size] = 0
+            if applied:
+                mask_[y_scaled:y_scaled+step_size, x_scaled:x_scaled+step_size] = 0
     if save_path is not None:
         Image.fromarray(mask_).save(save_path)
 

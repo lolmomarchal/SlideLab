@@ -70,7 +70,7 @@ class TileIterator:
 
     def __getitem__(self, i):
         coord = self.coordinates[i]
-        tile = self.slide.read_region((coord[0], coord[1]), 0, (self.adjusted_size, self.adjusted_size)).convert(
+        tile = self.slide.read_region((coord[0], coord[1]), 0,  self.adjusted_size).convert(
             'RGB').resize(
             (self.size, self.size), Image.BILINEAR)
         if self.normalizer is not None:
@@ -82,7 +82,7 @@ class TileIterator:
         if self.index >= len(self.coordinates):
             raise StopIteration
         coord = self.coordinates[self.index]
-        tile = self.slide.read_region((coord[0], coord[1]), 0, (self.adjusted_size, self.adjusted_size)).convert(
+        tile = self.slide.read_region((coord[0], coord[1]), 0, self.adjusted_size).convert(
             'RGB').resize(
             (self.size, self.size), Image.BILINEAR)
         self.index += 1

@@ -8,29 +8,61 @@ import openslide
 import numba
 import time
 from skimage.filters import threshold_otsu # pylint: disable=no-name-in-module
-from scipy.signal import convolve2d
 
-def he_otsu(image: np.ndarray,blur_kernel_width: int = 0,nbins: int = 256,hist = None
-) :
+@numba.njit(parallel = True)
+def compute_color_masks(img: np.ndarray):
+    """
+    Helper method for he_otsu. Calculates the red/blue vs green intensities at each pixel of the image
+    Also calculates the tissue_heatmap. Unlike original method described in Schreiber et. al., uses minimum differences of r vs g and b vs g
+    to calculate the tissue heatmap to circumvent exclusion of lighter tissues.
+    """
+    h, w, _ = img.shape
+    red_to_green = np.zeros((h, w), dtype=np.float32)
+    blue_to_green = np.zeros((h, w), dtype=np.float32)
+    for i in numba.prange(h):
+        for j in range(w):
+            r = float(img[i, j, 0])
+            g = float(img[i, j, 1])
+            b = float(img[i, j, 2])
+            red_to_green[i, j] = max(r - g, 0.0)
+            blue_to_green[i, j] = max(b - g, 0.0)
+    tissue_heatmap = np.minimum(red_to_green, blue_to_green)
+    # tissue_heatmap = red_to_green *blue_to_green
+    return tissue_heatmap
 
-    red_channel = image[:, :, 0].astype(float)
-    green_channel = image[:, :, 1].astype(float)
-    blue_channel = image[:, :, 2].astype(float)
 
-    red_to_green_mask = np.maximum(red_channel - green_channel, 0)
-    blue_to_green_mask = np.maximum(blue_channel - green_channel, 0)
-
-    tissue_heatmap = red_to_green_mask * blue_to_green_mask
-
-    threshold = threshold_otsu(
-        red_to_green_mask * blue_to_green_mask, nbins=nbins, hist=hist
-    )
+def he_otsu(image: np.ndarray, blur_kernel_width: int = 3,
+            nbins: int = 256, hist=None):
+    """
+   Otsu thresholding method adapted for H & E images modified from Schreiber et. al.
+   Args:
+       :param image (np.array): An RGB image (e.g., WSI thumbnail)
+       :param blur_kernel_width (int): Blurs the mask with the given blur kernel
+       :param nbins (int, optional): Number of bins used to calculate histogram.
+                           This value is ignored for integer arrays.
+                           Defaults to 256.
+       :param hist (Union[np.ndarray, Tuple[np.ndarray,np.ndarray]], optional):
+                           Histogram from which to determine the threshold, and optionally a
+                           corresponding array of bin center intensities. If no hist provided,
+                           this function will compute it from the image. Default to None.
+   Returns:
+   :return: Tuple[np.ndarray, float]: The Tissue mask and upper threshold value. All pixels with an intensity higher than
+       this value are assumed to be tissue
+   Citations:
+   B. A. Schreiber, J. Denholm, F. Jaeckle, M. J. Arends, K. M. Branson, C.-B.Schönlieb, and E. J. Soilleux. Bang and the artefacts are gone! Rapid artefact
+   removal and tissue segmentation in haematoxylin and eosin stained biopsies, 2023.
+   URL http://arxiv.org/abs/2308.13304.
+   Original code: https://gitlab.developers.cam.ac.uk/bas43/h_and_e_otsu_thresholding#otsu
+   """
+    tissue_heatmap = compute_color_masks(image)
+    threshold = threshold_otsu(tissue_heatmap, nbins=nbins, hist=hist)
     mask = tissue_heatmap > threshold
+
+    # Original blur processing
     if blur_kernel_width != 0:
         blur_kernel = np.ones((blur_kernel_width, blur_kernel_width))
-        mask = convolve2d(mask, blur_kernel, mode = "same")
+        mask = cv2.filter2D(mask.astype(np.uint8), -1, blur_kernel, borderType=cv2.BORDER_CONSTANT)
         mask = mask > 0
-        # mask = mask > 0
 
     return mask, threshold
 
@@ -67,13 +99,14 @@ class TissueMask:
     - :param threshold (float in range 0-1): threshold needed for a tile to be considered "tissue"
     - :param SCALE (int): scale to down sample to for masking. If given None will choose the closest available down sample to 64
     """
-
     def __init__(self, slide, masks=None, result_path=None,
                  threshold=0.8, SCALE=64, red_pen_thresh = 0.4, blue_pen_thresh = 0.4, remove_folds = False):
+
         self.red_pen_thresh =red_pen_thresh
         self.blue_pen_thresh = blue_pen_thresh
         self.slide = openslide.OpenSlide(slide) if isinstance(slide, str) else slide
         self.SCALE = SCALE or min(64,int(self.slide.level_downsamples[-1]))
+
         self.thumbnail = np.array(
             self.slide.get_thumbnail((self.slide.dimensions[0] // self.SCALE, self.slide.dimensions[1] // self.SCALE))
         )
@@ -103,18 +136,7 @@ class TissueMask:
         """
         return np.copy(self.mask), self.SCALE
 
-    def is_tissue(self, masked_region, threshold=0.7):
-        """
-        :param masked_region ( np.ndarray ):array representation of tissue region
-        :param threshold (float) : needed for instance to be considered tissue
-        :return (bool) : True if passes threshold, False othersise
-        """
-        tissue = np.count_nonzero(masked_region)
-        total_elements = masked_region.size
-        if total_elements == 0:
-            return False
 
-        return tissue / total_elements >= threshold
 
     # MASK METHODS
 
@@ -139,7 +161,7 @@ class TissueMask:
         return _, threshold_img.astype(bool)
 
     def remove_small_holes(self, binary_mask: np.array, min_size=None, avoid_overmask=True,
-                           overmask_thresh=95, kernel_size=2):
+                           overmask_thresh=99, kernel_size=2):
         """
         Removes small objects (artifacts) left by masking
         :param binary_mask: np.ndarray
@@ -151,33 +173,33 @@ class TissueMask:
         """
         # start = time.process_time()
         if min_size is None:
-                min_size = binary_mask.size * 0.0001
-        
+            min_size = binary_mask.size * 0.0001
+
         binary_mask = binary_mask.astype(np.uint8)
         _, binary_mask = cv2.threshold(binary_mask, 0, 255, cv2.THRESH_BINARY)
-        
+
         num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(binary_mask, connectivity=8)
-        
+
         sizes = stats[1:, cv2.CC_STAT_AREA]
         cleaned_mask = np.zeros_like(binary_mask)
-        
+
         for i in range(1, num_labels):
-                if sizes[i - 1] >= min_size:
-                    cleaned_mask[labels == i] = 255
-        
+            if sizes[i - 1] >= min_size:
+                cleaned_mask[labels == i] = 255
+
         mask_percentage = (np.sum(cleaned_mask > 0) / cleaned_mask.size) * 100
         if avoid_overmask:
-                while mask_percentage >= overmask_thresh and min_size >= 1:
-                    min_size //= 2
-                    cleaned_mask[:] = 0
-                    for i in range(1, num_labels):
-                        if sizes[i - 1] >= min_size:
-                            cleaned_mask[labels == i] = 255
-                    mask_percentage = (np.sum(cleaned_mask > 0) / cleaned_mask.size) * 100
+            while mask_percentage >= overmask_thresh and min_size >= 1:
+                min_size //= 2
+                cleaned_mask[:] = 0
+                for i in range(1, num_labels):
+                    if sizes[i - 1] >= min_size:
+                        cleaned_mask[labels == i] = 255
+                mask_percentage = (np.sum(cleaned_mask > 0) / cleaned_mask.size) * 100
         if kernel_size > 1:
-                kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_size, kernel_size))
-                cleaned_mask = cv2.dilate(cleaned_mask, kernel)
-        
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_size, kernel_size))
+            cleaned_mask = cv2.dilate(cleaned_mask, kernel)
+
         return cleaned_mask
 
     def get_saturation_intensity(self, image_rgb):
@@ -186,10 +208,10 @@ class TissueMask:
         s = hsv[:, :, 1] / 255.0
         v = hsv[:, :, 2] / 255.0
         return s, v
-    
+
     def compute_difference_image(self, s, i):
         return s - i
-    
+
     def get_connected_object_counts(self, d_img, thresholds):
         counts = []
         for t in thresholds:
@@ -197,14 +219,14 @@ class TissueMask:
             num_labels, _ = cv2.connectedComponents(binary, connectivity=8)
             counts.append(num_labels - 1)
         return np.array(counts)
-    
+
     def find_thresholds(self,counts, thresholds, alpha, beta):
         max_c = np.max(counts)
         T = lambda c: thresholds[np.where(counts >= c)[0][-1]]
         t_hard = T(alpha * max_c)
         t_soft = T(beta * max_c)
         return t_hard, t_soft
-    
+
     def apply_thresholds(self,d_img, t_soft, t_hard):
         soft_mask = (d_img > t_soft).astype(np.uint8)
         hard_mask = (d_img > t_hard).astype(np.uint8)
@@ -212,21 +234,26 @@ class TissueMask:
         dilated_hard = cv2.dilate(hard_mask, kernel)
         combined = cv2.bitwise_and(soft_mask, dilated_hard)
         return combined
-    
+
     def detect_tissue_folds(self, alpha=0.65, beta=0.34, min_size=64):
         s, i = self.get_saturation_intensity(self.thumbnail)
         d_img = self.compute_difference_image(s, i)
-    
+
         thresholds = np.arange(-1.0, 1.01, 0.05)
         counts = self.get_connected_object_counts(d_img, thresholds)
-    
+
         t_hard, t_soft = self.find_thresholds(counts, thresholds, alpha, beta)
-    
+
         fold_mask = self.apply_thresholds(d_img, t_soft, t_hard)
         fold_mask = self.remove_small_holes(fold_mask, min_size = min_size, kernel_size = 2)
+        true_percentage = np.count_nonzero(fold_mask.astype(np.uint8)/ np.count_nonzero(self.otsu))
+
+        if true_percentage > 0.7:
+            return ~np.zeros_like(fold_mask, dtype=np.uint8)
+
         return ~fold_mask.astype(bool)
 
-    
+
 
     def combined_mask(self):
         mask_methods = self.masks_list
@@ -283,7 +310,7 @@ class TissueMask:
             (130, 155, 180),
             (40, 35, 85),
             (30, 20, 65),
-            #(90, 90, 140),
+            (90, 90, 140),
             (60, 60, 120),
             (110, 110, 175),
         ]
@@ -338,7 +365,12 @@ class TissueMask:
         result = result.astype("uint8") * 255
         kernel = np.ones((3, 3), np.uint8)
         dilated_mask = cv2.dilate(result, kernel, iterations=1)
-        return result.astype(bool)
+        true_percentage = np.count_nonzero(dilated_mask.astype(np.uint8)) / np.count_nonzero(self.otsu)
+
+        # Check if the percentage exceeds 20%
+        if true_percentage > 0.6:
+            return ~np.zeros_like(dilated_mask, dtype=np.uint8)
+        return dilated_mask.astype(bool)
 
     def red_pen_filter(self):
         """Filter out red pen marks and return a binary mask."""
@@ -424,8 +456,10 @@ class TissueMask:
         parameters = [
             {"red_thresh": 50, "green_thresh": 50, "blue_thresh": 50},
             {"red_thresh": 30, "green_thresh": 30, "blue_thresh": 30},
+            {"red_thresh": 40, "green_thresh": 40, "blue_thresh": 40},
             {"red_thresh": 20, "green_thresh": 20, "blue_thresh": 20},
             {"red_thresh": 10, "green_thresh": 10, "blue_thresh": 10},
+            {"red_thresh": 0, "green_thresh": 0, "blue_thresh": 0},
         ]
         pen_masks = [self.black_filter(self.thumbnail, **param) for param in parameters]
         combined_mask = np.any(pen_masks, axis=0)

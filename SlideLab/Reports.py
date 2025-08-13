@@ -62,16 +62,20 @@ class Reports:
         else:
             summary.to_csv(self.summary_path, index=False)
     def summary_report_update_encoding(self,encoding_data):
-        existing_summary = pd.read_csv(self.summary_path)
         encoding_summary = pd.DataFrame(encoding_data, columns = ["sample_id", "encoding_cpu_time", "encoding_user_time"])
-        if "encoding_cpu_time" not in list(existing_summary.columns):
-            merged = existing_summary.merge(encoding_summary, on="sample_id", how="left")
+        if os.path.exists(self.summary_path):
+            existing_summary = pd.read_csv(self.summary_path)
+            if "encoding_cpu_time" not in list(existing_summary.columns):
+                merged = existing_summary.merge(encoding_summary, on="sample_id", how="left")
+            else:
+                merged = existing_summary.merge(encoding_summary, on="sample_id", how="left", suffixes=("", "_new"))
+                for col in ["encoding_cpu_time", "encoding_user_time"]:
+                    merged[col] = merged[col].where(merged[f"{col}_new"] == -1, merged[f"{col}_new"])
+                merged = merged.drop(columns=[f"{col}_new" for col in ["encoding_cpu_time", "encoding_user_time"]])
+            merged.to_csv(self.summary_path, index=False)
         else:
-            merged = existing_summary.merge(encoding_summary, on="sample_id", how="left", suffixes=("", "_new"))
-            for col in ["encoding_cpu_time", "encoding_user_time"]:
-                merged[col] = merged[col].where(merged[f"{col}_new"] == -1, merged[f"{col}_new"])
-            merged = merged.drop(columns=[f"{col}_new" for col in ["encoding_cpu_time", "encoding_user_time"]])
-        merged.to_csv(self.summary_path, index=False)
+            encoding_summary.to_csv(self.summary_path, index = False)
+
 
 
 

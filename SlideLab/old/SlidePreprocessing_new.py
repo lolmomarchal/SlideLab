@@ -24,7 +24,7 @@ from SlideLab.normalization.TileNormalization import normalizeStaining, normaliz
 from TileQualityFilters import LaplaceFilter, plot_distribution
 from TissueMask import is_tissue, get_region_mask, TissueMask
 from tiling.TileDataset import TileDataset
-from SlideLab.utils.VisulizationUtils import reconstruct_slide
+from SlideLab.utils.VisualizationUtils import reconstruct_slide
 from config import get_args_from_config
 
 

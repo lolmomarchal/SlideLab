@@ -71,6 +71,37 @@ def vmin_vmax_standalone(V, minPhi, maxPhi):
 
 
 ########## MACKENCO ####################
+# In a separate Numba-focused utility file or similar
+
+# Original normalizeStaining function (in TileNormalization.py or similar)
+@numba.jit(nopython=True)
+def _normalize_staining_numba_core(tile_np_reshaped, h, w, Io, alpha, beta, HERef, maxCRef):
+    # tile_np_reshaped is the (num_pixels, 3) version
+    # h and w are the original image dimensions (e.g., 256, 256)
+
+    OD = -np.log(tile_np_reshaped / Io)
+    ODhat = OD[~((OD < beta).sum(axis=1) > 0)]
+
+    cov_ODhat = np.cov(ODhat.T)
+    eigvals, eigvecs = get_eig_standalone(cov_ODhat)
+    That = calculate_that_standalone(ODhat, eigvecs)
+
+    phi = np.arctan2(That[:, 1], That[:, 0])
+
+    minPhi, maxPhi = calculate_percentiles_standalone(phi, alpha)
+    vMin, vMax = vmin_vmax_standalone(eigvecs[:, 1:3], minPhi, maxPhi)
+
+    # Pass the correct original w and h to process_OD_standalone
+    Inorm = process_OD_standalone(OD, vMin, vMax, w, h, Io, HERef, maxCRef)
+
+    # Clamp values
+    Inorm = np.where(Inorm > 255, 254, Inorm)
+
+    # Reshape back to original dimensions (h, w, 3) using the passed h and w
+    Inorm = np.reshape(Inorm.T, (h, w, 3)).astype(np.uint8)
+
+    return Inorm
+
 def normalizeStaining(tile, Io=240, alpha=1, beta=0.15):
     try:
         with warnings.catch_warnings():
@@ -78,36 +109,64 @@ def normalizeStaining(tile, Io=240, alpha=1, beta=0.15):
 
             HERef = np.array([[0.5626, 0.2159],
                               [0.7201, 0.8012],
-                              [0.4062, 0.5581]])
-            maxCRef = np.array([1.9705, 1.0308])
+                              [0.4062, 0.5581]], dtype=np.float64)
+            maxCRef = np.array([1.9705, 1.0308], dtype=np.float64)
+
+            # Ensure HERef and maxCRef are contiguous
+            HERef = np.ascontiguousarray(HERef)
             maxCRef = np.ascontiguousarray(maxCRef)
 
-            HERef = np.ascontiguousarray(HERef)
+            # Convert tile to numpy array and get original dimensions
+            tile_np_original = tile.cpu().numpy() if torch.is_tensor(tile) else tile
+            h_orig, w_orig, c_orig = tile_np_original.shape # Get original height and width
 
-            h, w, c = tile.shape
-            tile_np = tile.cpu().numpy() if torch.is_tensor(tile) else tile
-            tile_np = np.ascontiguousarray(tile_np)
-            tile_np = tile_np.reshape((-1, 3)).astype(float)
+            # Reshape for processing within the numba core function
+            tile_np_reshaped = tile_np_original.reshape((-1, 3)).astype(np.float64)
+            tile_np_reshaped[tile_np_reshaped == 0] = 1 # Handle zero values
 
-            tile_np[tile_np == 0] = 1
-            OD = -np.log(tile_np / Io)
-
-            ODhat = OD[~np.any(OD < beta, axis=1)]
-
-            cov_ODhat = np.cov(ODhat.T)
-            eigvals, eigvecs = get_eig_standalone(cov_ODhat)
-            That = calculate_that_standalone(ODhat, eigvecs)
-
-            phi = np.arctan2(That[:, 1], That[:, 0])
-
-            minPhi, maxPhi = calculate_percentiles_standalone(phi, alpha)
-            vMin, vMax = vmin_vmax_standalone(eigvecs[:, 1:3], minPhi, maxPhi)
-            Inorm= process_OD_standalone(OD, vMin, vMax, w, h, Io, HERef, maxCRef)
-            Inorm[Inorm > 255] = 254
-            Inorm = np.reshape(Inorm.T, (w, h, 3)).astype(np.uint8)
+            # Call the numba-optimized core function, passing original h and w
+            Inorm = _normalize_staining_numba_core(tile_np_reshaped, h_orig, w_orig, Io, alpha, beta, HERef, maxCRef)
             return Inorm
-    except (FloatingPointError, ValueError, np.linalg.LinAlgError, RuntimeWarning):
+    except (FloatingPointError, ValueError, np.linalg.LinAlgError, RuntimeWarning, Exception) as e:
+        print(f"Normalization error: {e}")
         return None
+# def normalizeStaining(tile, Io=240, alpha=1, beta=0.15):
+#     try:
+#         with warnings.catch_warnings():
+#             warnings.simplefilter("error", category=RuntimeWarning)
+#
+#             HERef = np.array([[0.5626, 0.2159],
+#                               [0.7201, 0.8012],
+#                               [0.4062, 0.5581]])
+#             maxCRef = np.array([1.9705, 1.0308])
+#             maxCRef = np.ascontiguousarray(maxCRef)
+#
+#             HERef = np.ascontiguousarray(HERef)
+#
+#             h, w, c = tile.shape
+#             tile_np = tile.cpu().numpy() if torch.is_tensor(tile) else tile
+#             tile_np = np.ascontiguousarray(tile_np)
+#             tile_np = tile_np.reshape((-1, 3)).astype(float)
+#
+#             tile_np[tile_np == 0] = 1
+#             OD = -np.log(tile_np / Io)
+#
+#             ODhat = OD[~np.any(OD < beta, axis=1)]
+#
+#             cov_ODhat = np.cov(ODhat.T)
+#             eigvals, eigvecs = get_eig_standalone(cov_ODhat)
+#             That = calculate_that_standalone(ODhat, eigvecs)
+#
+#             phi = np.arctan2(That[:, 1], That[:, 0])
+#
+#             minPhi, maxPhi = calculate_percentiles_standalone(phi, alpha)
+#             vMin, vMax = vmin_vmax_standalone(eigvecs[:, 1:3], minPhi, maxPhi)
+#             Inorm= process_OD_standalone(OD, vMin, vMax, w, h, Io, HERef, maxCRef)
+#             Inorm[Inorm > 255] = 254
+#             Inorm = np.reshape(Inorm.T, (w, h, 3)).astype(np.uint8)
+#             return Inorm
+#     except (FloatingPointError, ValueError, np.linalg.LinAlgError, RuntimeWarning):
+#         return None
 
 
 # if gpu available, use torch

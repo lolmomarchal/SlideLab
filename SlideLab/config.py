@@ -49,7 +49,7 @@ def create_parser(config=None):
                         help="extract high quality")
     parser.add_argument("--augmentations", type=int, default=defaults.get('augmentations', 0),
                         help="augment data for training")
-    parser.add_argument("--encoder_model", default=defaults.get('encoder_model', 'resnet50'),
+    parser.add_argument("--feature_extractor", default=defaults.get('feature_extractor', 'resnet50'),
                         help="current options: resnet50, mahmood-uni")
     parser.add_argument("--token", default=defaults.get('token'),
                         help="required to download model weights from hugging face")
@@ -116,7 +116,7 @@ def main():
         # encoding customizations
         "extract_high_quality": False,
         "augmentations": 0,
-        "encoder_model": "resnet50",
+        "feature_extractor": "resnet50",
         "token": None,
 
         # thresholds
@@ -146,7 +146,7 @@ def main():
     # tile customization 
     desired_size: 256  # Desired size of the tiles in pixels 
     overlap: 1
-    output_format: png
+    output_format: null
     
     # resolution scales
     # for resolutions scales either desired_magnification or desired_mpp should have a value
@@ -168,7 +168,7 @@ def main():
     # encoding customizations
     extract_high_quality: false  # extract high quality
     augmentations: 0  # augment data for training
-    encoder_model: resnet50  # current options: resnet50, mahmood-uni
+    feature_extractor: resnet50  # current options: resnet50, mahmood-uni, resnet50-truncated
     token: null  # required to download model weights from hugging face
     
     # thresholds 

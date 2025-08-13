@@ -1,13 +1,13 @@
 # input/output
 #    input_path: /home/lolmomarchal/Master_notebooks/figure_purposes/DiceScores # path to input file/directory
 #    output_path: /mnt/c/Users/loren/Downloads/DiceScores_processed_slidelab
-    input_path: /mnt/c/Users/loren/Downloads/Camelyon16/images/normal_039.tif
-    output_path: /mnt/c/Users/loren/Downloads/Camelyon16/preprocessing_FUCK2/
+    input_path: /home/lolmomarchal/Master_notebooks/figure_purposes/DiceScores/TCGA-AC-A2FF-01Z-00-DX1.svs
+    output_path: /mnt/c/Users/loren/Downloads/test9
     
     # tile customization 
-    desired_size: 256  # Desired size of the tiles in pixels 
+    desired_size: 256  # Desired size of the tiles in pixels
     overlap: 1
-    output_format: png
+    output_format: h5
     
     # resolution scales
     # for resolutions scales either desired_magnification or desired_mpp should have a value
@@ -22,24 +22,24 @@
     # preprocessing processes customization
     
     remove_blurry_tiles: true  # flag to enable usage of the laplacian filter to remove blurry tiles
-    normalize_staining: true  # Flag to enable normalization of tiles
-    encode: false  # Flag to encode tiles and create associated .h5 file
-    reconstruct_slide: true  # reconstruct slide
+    normalize_staining: macenko  # null if no norm
+    encode: true  # Flag to encode tiles and create associated .h5 file
+    reconstruct_slide: false  # reconstruct slide
         
     # encoding customizations
     extract_high_quality: false  # extract high quality
     augmentations: 0  # augment data for training
-    encoder_model: resnet50_truncated  # current options: resnet50,resnet50_truncated,mahmood-uni
+    feature_extractor: resnet50  # current options: resnet50,resnet50_truncated,mahmood-uni
     token: null  # required to download model weights from hugging face
     
     # thresholds 
-    tissue_threshold: 0.7  # Threshold to consider a tile as Tissue
-    blur_threshold: 0.02  # Threshold for laplace filter variance
-    red_pen_check: 0.4  # Sanity check for % of red pen detected. If above threshold, red_pen mask will be ignored
-    blue_pen_check: 0.4  # Sanity check for % of blue pen detected, If above threshold, blue_pen mask will be ignored
+    tissue_threshold: 0.8 # Threshold to consider a tile as Tissue
+    blur_threshold: 0.05 # Threshold for laplace filter variance
+    red_pen_check: 0.8 # Sanity check for % of red pen detected. If above threshold, red_pen mask will be ignored
+    blue_pen_check: 0.8 # Sanity check for % of blue pen detected, If above threshold, blue_pen mask will be ignored
     include_adipose_tissue: false  # will include adipose tissue in mask
     remove_folds: true  # will remove folded tissue in mask
-    mask_scale: null  # scale at which to downscale WSI for masking. Recommended is either 64 or None which will downsize to the lowest possible downscale recommended by openslide. None will produce a higher quality mask but is slower than 64
+    mask_scale: 64  # scale at which to downscale WSI for masking. Recommended is either 64 or None which will downsize to the lowest possible downscale recommended by openslide. None will produce a higher quality mask but is slower than 64
     
     # for devices + multithreading
     device: null  # device to use (e.g., 'cuda:0', 'cpu')

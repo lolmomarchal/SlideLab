@@ -85,7 +85,7 @@ class TileEncoding_h5(Dataset):
                 augmented_images = [self.augmentations(image.copy()) for _ in range(self.num_augmentations)]
                 augmented_images.insert(0, self.no_augmentations(image))
                 stacked_images = torch.stack(augmented_images, dim=0)
-                return torch.tensor([x,y]), stacked_images, item
+                return x,y, stacked_images, item
 
             except Exception as e:
                 print(f"Error loading item {item}: {str(e)}")
@@ -126,7 +126,7 @@ class TilePreprocessing_png(Dataset):
             augmented_images.insert(0, self.no_augmentations(image))
             stacked_images = torch.stack(augmented_images, dim=0)
 
-            return torch.tensor([x,y]), stacked_images, tile_path
+            return x, y, stacked_images, tile_path
         except:
             del self.data[idx]
             return self.__getitem__(idx)
@@ -174,6 +174,81 @@ class TilePreprocessing_nosaving(Dataset):
             _, _, self.coordinates, _ = get_valid_coordinates(
                 w, h, overlap, self.mask.mask, self.adjusted_size, self.mask.SCALE, threshold=tissue_threshold
             )
+        # define pipeline
+
+        self._create_processing_pipeline()
+
+    def _apply_augmentations(self, tile, x, y, var):
+        """Apply augmentations"""
+        tile_tensor = torch.from_numpy(tile).float().permute(2, 0, 1) / 255.0
+        augmented_tiles = [self.augmentations(tile) for _ in range(self.num_augmentations)]
+        augmented_tiles.insert(0, self.no_augmentations(tile_tensor))
+        return torch.stack(augmented_tiles), x, y, var
+
+    def _apply_no_augmentations(self, tile, x, y, var):
+        return self.no_augmentations(tile), x, y, var
+
+    def _check_blur(self, tile, x, y, var):
+        blur, var = LaplaceFilter(tile)
+        if blur:
+            return None
+        return tile, x, y, var
+
+    def _apply_normalization(self, tile, x, y, var):
+        """Apply staining normalization"""
+        tile = normalizeStaining(tile)
+        if tile is None:
+            return None
+        return tile, x, y, var
+
+    # read tiles & resize if necessary
+    def _base_conversion(self, tile, x, y, var):
+        tile = np.array(tile)
+        if self.adjusted_size != self.size:
+            tile = cv2.resize(tile, (self.size, self.size), interpolation=cv2.INTER_AREA)
+        return tile, x, y, var
+    def _compose_processing_steps(self, steps):
+        def processing_pipeline(tile, x, y):
+            var = 0.0
+            try:
+                for step in steps:
+                    result = step(tile, x, y, var)
+                    if result is None:
+                        return self.error_return
+                    tile, x, y, var = result
+                return torch.tensor([x, y], dtype=torch.float32), tile, torch.tensor(var)
+            except Exception as e:
+                print(step)
+                print(e)
+                return self.error_return
+        return processing_pipeline
+    def _create_processing_pipeline(self):
+        steps = []
+        steps.append(self._base_conversion)
+
+        # Step 1: Add normalization if needed
+        if self.normalizer is not None:
+            steps.append(self._apply_normalization)
+
+        # Step 2: Add blur detection if needed
+        if self.remove_blurry:
+            steps.append(self._check_blur)
+
+        # Step 3: Add augmentations if needed
+        if self.num_augmentations > 0:
+            steps.append(self._apply_augmentations)
+        else:
+            steps.append(self._apply_no_augmentations)
+
+        # process tile is all of the combined steps
+        self.process_tile = self._compose_processing_steps(steps)
+
+        # if error
+        self.error_return = (
+            torch.tensor([-1, -1], dtype=torch.float32),
+            torch.zeros((3, self.size, self.size), dtype=torch.float32),
+            torch.tensor(0.0)
+        )
 
     def __len__(self):
         return len(self.coordinates)
@@ -181,42 +256,7 @@ class TilePreprocessing_nosaving(Dataset):
     def __getitem__(self, item):
         coord = self.coordinates[item]
         x, y = coord[0], coord[1]
-
-        try:
-            tile = np.array(self.slide.read_region((x, y), 0, (self.adjusted_size, self.adjusted_size)).convert('RGB'))
-            if self.adjusted_size != self.size:
-                tile = cv2.resize(tile, (self.size, self.size), interpolation=cv2.INTER_AREA)
-
-            if self.normalizer is not None:
-                tile = normalizeStaining(tile)
-                if tile is None:
-                    print("Error during normalization!")
-                    # Return zero tensors instead
-                    dummy_tile = torch.zeros((3, self.size, self.size), dtype=torch.float32)
-                    return torch.tensor([-1, -1], dtype=torch.float32), dummy_tile, torch.tensor(0.0)
-
-            if self.remove_blurry:
-                blur, var = LaplaceFilter(tile)
-                if blur:
-                    print("Tile was blurry!")
-                    # Return zero tensors with flag values
-                    dummy_tile = torch.zeros((3, self.size, self.size), dtype=torch.float32)
-                    return torch.tensor([-1, -1], dtype=torch.float32), dummy_tile, torch.tensor(0.0)
-            else:
-                var = torch.tensor(0.0)  # Convert to tensor
-
-            if self.num_augmentations == 0:
-                tile = self.no_augmentations(tile)
-                return torch.tensor([x, y], dtype=torch.float32), tile, torch.tensor(var)
-            else:
-                augmented_tiles = [self.augmentations(tile.copy()) for _ in range(self.num_augmentations)]
-                augmented_tiles.insert(0, self.no_augmentations(tile))
-                stacked_tiles = torch.stack(augmented_tiles, dim=0)
-                return torch.tensor([x, y], dtype=torch.float32), stacked_tiles, torch.tensor(var)
-        except:
-            dummy_tile = torch.zeros((3, self.size, self.size), dtype=torch.float32)
-
-            return torch.tensor([-1, -1], dtype=torch.float32), dummy_tile, torch.tensor(0.0)
-
+        tile = self.slide.read_region((x, y), 0, (self.adjusted_size, self.adjusted_size)).convert('RGB')
+        return self.process_tile(tile, x, y)
 
 

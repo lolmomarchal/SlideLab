@@ -2,7 +2,7 @@ import os
 import torch
 from torchvision import models
 from torchvision.models.resnet import ResNet50_Weights
-import torchvision.transforms as T
+from torchvision import transforms as T
 import torch.nn as nn
 import timm
 from huggingface_hub import hf_hub_download
@@ -10,6 +10,17 @@ import sys
 
 torch.backends.cudnn.benchmark = True
 ####### HELPER
+
+## dummy module
+#
+class empty(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.model_name = "empty"
+    def forward(self,x):
+        return torch.zeros((1, 2048), dtype=torch.float32)
+
+
 def get_truncated_resnet50():
     resnet50 = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
     truncated = nn.Sequential(
@@ -76,27 +87,29 @@ class Encoder:
         return self.model, self.transforms
         # TODO: add more options
     def get_model_and_transform(self):
+        transforms  =  T.Compose(
+            [
+                T.Resize(224, antialias=True),
+                T.ConvertImageDtype(torch.float32),
+                T.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+            ]
+        )
         if self.type == "resnet50":
             encoder_model = models.resnet50(weights=ResNet50_Weights.DEFAULT)
             encoder_model = torch.nn.Sequential(*list(encoder_model.children())[:-1])
             encoder_model.eval().to(self.device)
-            transforms = T.Normalize(
-                mean=[0.485, 0.456, 0.406],
-                std=[0.229, 0.224, 0.225]
-            )
+
         elif self.type == "resnet50_truncated":
-            transforms = T.Normalize(
-                mean=[0.485, 0.456, 0.406],
-                std=[0.229, 0.224, 0.225]
-            )
+
             encoder_model = get_truncated_resnet50()
             encoder_model.eval().to(self.device)
         elif self.type == "mahmood-uni":
             encoder_model = download_and_initiate_UNI(self.token, self.device)
-            transforms = T.Normalize(
-                mean=[0.485, 0.456, 0.406],
-                std=[0.229, 0.224, 0.225]
-            )
+
+        elif self.type == "empty":
+            encoder_model = empty()
+            # self.transforms = None
+
         return encoder_model, transforms
 
 
