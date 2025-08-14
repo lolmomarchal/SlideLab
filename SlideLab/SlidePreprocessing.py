@@ -872,9 +872,11 @@ def main():
             # path to save features
             sample_path = os.path.join(encoding_dir, patient_id+".h5")
             # processed slide
-            slide, coords, mask, magnification, adjusted_size, summary, error = preprocessor.__call__(slide_path,
-                                                                                                      patient_id,
-                                                                                                      output_path)
+            out = preprocessor.__call__(slide_path,  patient_id,output_path)
+            if len(out) == 2:
+                summary, error = out
+            else:
+                slide, coords, mask, magnification, adjusted_size, summary, error = out
             report_instance = Reports.Reports([summary], [error], output_path)
             # only continue if there was NO error -> if there was some sort of error, shouldn't continue
             start_cpu_time = time.process_time()
