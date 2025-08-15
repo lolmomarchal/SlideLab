@@ -920,8 +920,6 @@ def main():
         import torch
         torch.backends.cudnn.benchmark = True
         extension = ".csv" if preprocessor.config.get("output_format") == "png" else ".h5"
-
-        from SlideEncoding import SlideEncoding
         slide_encoder = SlideEncoding(preprocessor.config, preprocessor.pipeline_steps)
         # name after the encoder
         encoding_path = os.path.join(output_path, preprocessor.config.get("feature_extractor"))
@@ -937,7 +935,10 @@ def main():
             in_path = os.path.join(output_path, patient_id, patient_id + extension)
             start_cpu_time = time.process_time()
             start_user_time = time.time()
-            slide_encoder.__call__(in_path, sample_path)
+            try:
+                slide_encoder.__call__(in_path, sample_path)
+            except Exception as e :
+                print(f"[ERROR] failed to encode {patient_id}")
             encoding_times.append((patient_id, time.process_time() - start_cpu_time, time.time() - start_user_time))
 
             t.update(1)
