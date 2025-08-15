@@ -12,7 +12,7 @@ import numba
 
 def filter_patients(patient_df, summary_df, args):
     summary_df = pd.read_csv(summary_df)
-    if not args.remove_blurry_tiles:
+    if not args.get("remove_blurry_tiles"):
         column = "tiles_passing_tissue_thresh"
     else:
         column = "non_blurry_tiles"
