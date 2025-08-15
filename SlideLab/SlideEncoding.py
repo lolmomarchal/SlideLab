@@ -128,7 +128,7 @@ class SlideEncoding:
                 if batch is None:
                     continue
                 print(batch)
-                x,y,images, tile_paths = batch
+                coords,images, tile_paths = batch
                 images = images.to(self.device, non_blocking = True)
                 all_tile_paths.extend(tile_paths)
                 if images.ndim == 4:  # No augmentations
@@ -140,9 +140,8 @@ class SlideEncoding:
                     features = features.view(batch_size, num_versions, -1).cpu().numpy()
                     writer.add_data('features', features)
                 # write coordinates
-                coords = np.stack([x.numpy(), y.numpy()], axis=1)
                 writer.add_data('coords', coords)
-                del x,y, images, tile_paths
+                del coords, images, tile_paths
         writer.finalize({
             'tile_path': np.array(all_tile_paths, dtype='S')
         })
