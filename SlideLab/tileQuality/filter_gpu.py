@@ -1,10 +1,10 @@
 import torch
 import torch.nn.functional as F
 
-def LaplaceFilter(batch, threshold=0.015):
+def LaplaceFilter(batch, threshold=0.015, device = "cuda"):
 
     # convert batch from B,H,W,C to B,C,H,W and normalize
-    batch = batch.permute(0, 3, 1, 2).float()
+    batch = batch.permute(0, 3, 1, 2).float().to(device)
     r, g, b = batch[:, 0:1], batch[:, 1:2], batch[:, 2:3]
     gray = 0.299 * r + 0.587 * g + 0.114 * b
     gray = gray / 255.0
