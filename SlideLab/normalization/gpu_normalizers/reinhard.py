@@ -28,7 +28,7 @@ def lab_merge(I1, I2, I3):
     return cmerge(I1 * 2.55, I2 + 128, I3 + 128)
 def rgb2lab(rgb):
 
-    arr = rgb.type(torch.float32)
+    arr = rgb.type(torch.float32).to(device)
 
     mask = arr > 0.04045
     not_mask = torch.logical_not(mask)
@@ -53,7 +53,7 @@ def rgb2lab(rgb):
 
     return torch.stack([L, a, b], dim=0)
 def lab2rgb(lab):
-    lab = lab.type(torch.float32)
+    lab = lab.type(torch.float32).to(device)
     L, a, b = lab[0] / 2.55, lab[1] - 128, lab[2] - 128
     y = (L + 16.) / 116.
     x = (a / 500.) + y
