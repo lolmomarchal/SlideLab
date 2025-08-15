@@ -354,7 +354,7 @@ def save_h5(save_queue, h5_file, batch_size=128):
 def apply_stain_normalization_gpu(batch_img, vars_dict, coords, *, normalize_staining_func):
     # filter for any that may be none
     batch_img = normalize_staining_func(batch_img, device = batch_img.device)
-    mask = batch_img.reshape(batch_img.shape[0], -1).any(dim=1)
+    mask = batch_img.reshape(batch_img.shape[0], -1).any(dim=1).bool()
 
     filtered_batch = batch_img[mask]
     filtered_coords = coords[mask]
