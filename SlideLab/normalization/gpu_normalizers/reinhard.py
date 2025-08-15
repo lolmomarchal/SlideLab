@@ -1,5 +1,5 @@
 import torch
-
+torch.backends.cudnn.benchmark = True
 # constants
 device = "cuda" if torch.cuda.is_available() else "cpu"
 _rgb2xyz = torch.tensor([[0.412453, 0.357580, 0.180423],
