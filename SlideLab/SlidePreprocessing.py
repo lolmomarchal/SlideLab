@@ -472,7 +472,7 @@ class SlidePreprocessing:
         # setting up
         load_workers = self.max_workers // 2
         saving_workers = self.max_workers - load_workers
-        dataloader = DataLoader(tile_iterator, num_workers=self.max_workers // 2,
+        dataloader = DataLoader(tile_iterator, num_workers=load_workers,
                                 batch_size=self.config.get("batch_size"), pin_memory=True, shuffle=False)
 
         # multiprocessing portions
@@ -492,12 +492,14 @@ class SlidePreprocessing:
         for batch in dataloader:
             batch_tiles, coord_batch = batch
             batch_tiles = batch_tiles.to(self.device)
+            coord_batch = coord_batch.to(self.device)
             for step in self.pipeline_steps:
                 batch_tiles, coord_batch = step(batch_tiles, vars_dict, coord_batch)
                 print(batch_tiles.shape)
                 if batch_tiles.numel() == 0:
                     break
             batch_tiles = batch_tiles.cpu().numpy()
+            coord_batch = coord_batch.cpu().numpy()
             for tile, coord in zip(batch_tiles, coord_batch):
                 image_path = os.path.join(tiles_path,
                                           f"{patient_id}_{coord[0]}_{coord[1]}_size_{tile_iterator.size}_mag_{tile_iterator.magnification}.png")
@@ -537,7 +539,7 @@ class SlidePreprocessing:
         # setting up
         load_workers = self.max_workers - 1
         saving_workers = self.max_workers - load_workers
-        dataloader = DataLoader(tile_iterator, num_workers=self.max_workers // 2,
+        dataloader = DataLoader(tile_iterator, num_workers=load_workers,
                                 batch_size=self.config.get("batch_size"), pin_memory=True, shuffle=False)
 
         # multiprocessing portions
@@ -556,11 +558,13 @@ class SlidePreprocessing:
         for batch in dataloader:
             batch_tiles, coord_batch = batch
             batch_tiles = batch_tiles.to(self.device)
+            coord_batch = coord_batch.to(self.device)
             for step in self.pipeline_steps:
                 batch_tiles, coord_batch = step(batch_tiles, vars_dict, coord_batch)
                 if batch_tiles.numel() == 0:
                     break
             batch_tiles = batch_tiles.cpu().numpy()
+            coord_batch = coord_batch.cpu().numpy()
             for tile, coord in zip(batch_tiles, coord_batch):
                 save_queue.put((coord, tile))
                 results.append({
