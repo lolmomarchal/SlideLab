@@ -1,4 +1,5 @@
 import torch
+torch.backends.cudnn.benchmark = True
 def macenkoNormalizer(batch, alpha = 1, beta =0.15, Io = 240, device = "cuda"):
     batch = batch.to(device).float()
     B, H, W, C = map(int, batch.shape)
