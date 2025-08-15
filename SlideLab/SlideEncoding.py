@@ -127,6 +127,7 @@ class SlideEncoding:
             for batch in dataloader:
                 if batch is None:
                     continue
+                print(batch)
                 x,y,images, tile_paths = batch
                 images = images.to(self.device, non_blocking = True)
                 all_tile_paths.extend(tile_paths)
