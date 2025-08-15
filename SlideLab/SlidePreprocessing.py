@@ -648,7 +648,7 @@ class SlidePreprocessing:
                     normalized_img = normalized_img.detach().cpu().numpy()
                     if normalized_img.ndim == 4 and normalized_img.shape[0] == 1:
                         normalized_img = normalized_img[0]
-                region = region.detach.cpu().numpy()
+                region = region.detach().cpu().numpy()
                 region = region[0]
 
             if normalized_img is not None:
@@ -688,7 +688,7 @@ class SlidePreprocessing:
                         normalized_img = self.normalization_method(region).detach().cpu().numpy()
                         if normalized_img.ndim == 4 and normalized_img.shape[0] == 1:
                             normalized_img = normalized_img[0]
-                        region = region.detach.cpu().numpy()
+                        region = region.detach().cpu().numpy()
                         region = region[0]
                     if normalized_img is not None:
                         normalized_img = np.array(normalized_img)
