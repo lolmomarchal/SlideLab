@@ -470,7 +470,7 @@ class SlidePreprocessing:
         patching_user = time.time()
         patching_cpu = time.process_time()
         # setting up
-        load_workers = self.max_workers // 2
+        load_workers = 4
         saving_workers = self.max_workers - load_workers
         dataloader = DataLoader(tile_iterator, num_workers=load_workers,
                                 batch_size=self.config.get("batch_size"), pin_memory=True, shuffle=False)
@@ -495,7 +495,6 @@ class SlidePreprocessing:
             coord_batch = coord_batch.to(self.device)
             for step in self.pipeline_steps:
                 batch_tiles, coord_batch = step(batch_tiles, vars_dict, coord_batch)
-                print(batch_tiles.shape)
                 if batch_tiles.numel() == 0:
                     break
             batch_tiles = batch_tiles.cpu().numpy()
