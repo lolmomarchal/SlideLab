@@ -361,7 +361,7 @@ def apply_stain_normalization_gpu(batch_img, vars_dict, coords, *, normalize_sta
     return filtered_batch, filtered_coords
 
 def apply_laplace_filter_gpu(img_np, vars_dict, coord, *, blur_method, blur_threshold):
-    blurry, var = blur_method(img_np, threshold=blur_threshold, device = batch_img.device)
+    blurry, var = blur_method(img_np, threshold=blur_threshold, device = img_np.device)
     var = var.cpu().numpy()
     for c, v in zip(coord, var):
         vars_dict[tuple(c)] = float(v)
