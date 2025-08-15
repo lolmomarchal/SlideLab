@@ -913,7 +913,7 @@ def main():
 
     if args.get("encode") and args.get("output_format") in ["png", "h5"]:
         if args.get("min_tiles") > 0:
-            filter_patients(patients, os.path.join(args.output_path, "SummaryReport.csv"), args)
+            filter_patients(patients, os.path.join(args.get("output_path"), "SummaryReport.csv"), args)
             patients = pd.read_csv(patient_path)
 
         from SlideEncoding import SlideEncoding
@@ -948,7 +948,7 @@ def main():
     report_instance.summary_report_update_encoding(encoding_times)
     if args.get("min_tiles") > 0:
         # filter patient_csv depending on amount of tiles
-        filter_patients(patients, os.path.join(args.output_path, "SummaryReport.csv"), args)
+        filter_patients(patients, os.path.join(args.get("output_path"), "SummaryReport.csv"), args)
 
         # Dataset type
 
