@@ -49,10 +49,13 @@ class CPUTileDataset(Dataset):
         if processed_np is None:
             return None, torch.tensor(coord)
 
-        img_tensor = torch.from_numpy(processed_np).permute(2, 0, 1)  # HWC → CHW
-        img_tensor = img_tensor.to(torch.uint8)
         if self.transforms:
+            img_tensor = torch.from_numpy(processed_np).permute(2, 0, 1)  # HWC → CHW
+            img_tensor = img_tensor.to(torch.uint8)
             img_tensor = self.transforms(img_tensor)
+        else:
+            img_tensor = torch.from_numpy(processed_np)
+
 
         return img_tensor, torch.tensor(coord)
 
