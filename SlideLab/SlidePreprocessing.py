@@ -938,7 +938,7 @@ def main():
             try:
                 slide_encoder.__call__(in_path, sample_path)
             except Exception as e :
-                print(f"[ERROR] failed to encode {patient_id}")
+                print(f"[ERROR] failed to encode {patient_id}, {e}")
             encoding_times.append((patient_id, time.process_time() - start_cpu_time, time.time() - start_user_time))
 
             t.update(1)
