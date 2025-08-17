@@ -213,8 +213,8 @@ class SlideEncoding:
             if batch is None:
                 continue
             batch_tiles, coord_batch = batch
-            batch_tiles = torch.stack(batch_tiles).to(self.device, non_blocking=True)
-            coord_batch = torch.stack(coord_batch).to(self.device, non_blocking=True)
+            batch_tiles = batch_tiles.to(self.device, non_blocking=True)
+            coord_batch =coord_batch.to(self.device, non_blocking=True)
 
 
             for step in self.pipeline_steps:
