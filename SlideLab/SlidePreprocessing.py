@@ -556,8 +556,8 @@ class SlidePreprocessing:
             saver_threads.append(thread)
         for batch in dataloader:
             batch_tiles, coord_batch = batch
-            batch_tiles = batch_tiles.to(self.device)
-            coord_batch = coord_batch.to(self.device)
+            batch_tiles = batch_tiles.to(self.device, non_blocking = True)
+            coord_batch = coord_batch.to(self.device, non_blocking = True)
             for step in self.pipeline_steps:
                 batch_tiles, coord_batch = step(batch_tiles, vars_dict, coord_batch)
                 if batch_tiles.numel() == 0:
