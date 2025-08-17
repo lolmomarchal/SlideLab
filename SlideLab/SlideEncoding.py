@@ -191,7 +191,15 @@ class SlideEncoding:
 
 
     def _encode_no_saving_gpu(self, slide,output_path,coords, mask, adjusted_size, desired_size):
-        dataloader = DataLoader(self.dataset(slide, coords, mask,adjusted_size, desired_size), **self.loader_kwargs)
+        dataset = CPUTileDataset(
+            slide=slide,
+            coordinates=coords,
+            adjusted_size=adjusted_size,
+            desired_size=desired_size,
+            pipeline_steps=[],
+            transforms=None,
+        )
+        dataloader = DataLoader(dataset, **self.loader_kwargs)
         vars_dict =  multiprocessing.Manager().dict()
         writer = H5Writer(output_path)
         for batch in dataloader:

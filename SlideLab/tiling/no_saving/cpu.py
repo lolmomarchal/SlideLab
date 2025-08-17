@@ -17,7 +17,7 @@ from torch.utils.data import Dataset
 from concurrent.futures import ThreadPoolExecutor
 
 class CPUTileDataset(Dataset):
-    def __init__(self, slide, coordinates, adjusted_size, desired_size,
+    def __init__(self, slide, coordinates, adjusted_size, desired_size,*,
                  pipeline_steps=None, transforms=None):
         self.slide = slide
         self.coordinates = coordinates
