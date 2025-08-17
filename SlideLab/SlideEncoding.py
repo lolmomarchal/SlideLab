@@ -199,14 +199,20 @@ class SlideEncoding:
             pipeline_steps=[],
             transforms=None,
         )
-        dataloader = DataLoader(dataset, **self.loader_kwargs)
+        def skip_none_collate(batch):
+            # remove None tiles
+            batch = [(t, c) for t, c in batch if t is not None]
+            if len(batch) == 0:
+                return None
+            tiles, coords = zip(*batch)
+            return torch.stack(tiles), torch.stack(coords)
+        dataloader = DataLoader(dataset,collate_fn=skip_none_collate, **self.loader_kwargs)
         vars_dict =  multiprocessing.Manager().dict()
         writer = H5Writer(output_path)
         for batch in dataloader:
-            # load images and preprocess them
-            batch_tiles, coord_batch = zip(*[(t, c) for t, c in batch if t is not None])
-            if len(batch_tiles) == 0:
+            if batch is None:
                 continue
+            batch_tiles, coord_batch = batch
             batch_tiles = torch.stack(batch_tiles).to(self.device, non_blocking=True)
             coord_batch = torch.stack(coord_batch).to(self.device, non_blocking=True)
 
