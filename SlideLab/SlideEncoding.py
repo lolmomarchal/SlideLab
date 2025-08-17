@@ -219,7 +219,6 @@ class SlideEncoding:
 
             for step in self.pipeline_steps:
                 batch_tiles, coord_batch = step(batch_tiles, vars_dict, coord_batch)
-                print(batch_tiles.shape)
                 if batch_tiles.numel() == 0:
                     break
             if batch_tiles.numel() == 0:
