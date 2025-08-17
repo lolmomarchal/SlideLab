@@ -467,6 +467,8 @@ class SlidePreprocessing:
 
     def _process_tiles_gpu_png(self, tile_iterator, patient_id, sample_path, natural_magnification, scale):
         from torch.utils.data import DataLoader
+        from torch.cuda import empty_cache
+
         patching_user = time.time()
         patching_cpu = time.process_time()
         # setting up
@@ -497,8 +499,8 @@ class SlidePreprocessing:
                 batch_tiles, coord_batch = step(batch_tiles, vars_dict, coord_batch)
                 if batch_tiles.numel() == 0:
                     break
-            batch_tiles = batch_tiles.cpu().numpy()
-            coord_batch = coord_batch.cpu().numpy()
+            batch_tiles = batch_tiles.detach().cpu().numpy()
+            coord_batch = coord_batch.detach().cpu().numpy()
             for tile, coord in zip(batch_tiles, coord_batch):
                 image_path = os.path.join(tiles_path,
                                           f"{patient_id}_{coord[0]}_{coord[1]}_size_{tile_iterator.size}_mag_{tile_iterator.magnification}.png")
@@ -508,10 +510,13 @@ class SlidePreprocessing:
                     "tile_path": image_path, "original_size": tile_iterator.adjusted_size,
                     "desired_size": tile_iterator.size, "desired_magnification": tile_iterator.magnification
                 })
+            del batch_tiles,coord_batch
         for _ in range(saving_workers):
             save_queue.put(None)
         for thread in saver_threads:
             thread.join()
+        del dataloader
+        empty_cache()
 
         # return results
         results = list(results)
@@ -533,6 +538,7 @@ class SlidePreprocessing:
 
     def _process_tiles_gpu_h5(self, tile_iterator, patient_id, sample_path, natural_magnification, scale):
         from torch.utils.data import DataLoader
+        from torch.cuda import empty_cache
         patching_user = time.time()
         patching_cpu = time.process_time()
         # setting up
@@ -562,8 +568,8 @@ class SlidePreprocessing:
                 batch_tiles, coord_batch = step(batch_tiles, vars_dict, coord_batch)
                 if batch_tiles.numel() == 0:
                     break
-            batch_tiles = batch_tiles.cpu().numpy()
-            coord_batch = coord_batch.cpu().numpy()
+            batch_tiles = batch_tiles.detach().cpu().numpy()
+            coord_batch = coord_batch.detach().cpu().numpy()
             for tile, coord in zip(batch_tiles, coord_batch):
                 save_queue.put((coord, tile))
                 results.append({
@@ -571,6 +577,8 @@ class SlidePreprocessing:
                     "original_size": tile_iterator.adjusted_size,
                     "desired_size": tile_iterator.size, "desired_magnification": tile_iterator.magnification
                 })
+            del batch_tiles,coord_batch
+
         for _ in range(saving_workers):
             save_queue.put(None)
         for thread in saver_threads:
@@ -585,6 +593,8 @@ class SlidePreprocessing:
         df_tiles["scale"] = scale
         df_tiles.to_csv(os.path.join(sample_path, patient_id + ".csv"), index=False)
         blurry_tiles = len(results_) if self.remove_blurry_tiles else None
+        del dataloader
+        empty_cache()
         return {
             'tiles_df': df_tiles,
             'vars': vars_dict,
