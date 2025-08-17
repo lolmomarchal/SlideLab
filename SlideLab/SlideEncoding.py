@@ -226,7 +226,8 @@ class SlideEncoding:
                 continue
 
             # apply transforms
-            images = self.transforms(batch_tiles).to(self.device, non_blocking=True)
+            images = torch.stack([self.transforms(img) for img in batch_tiles])  # B,C,H,W
+            images = images.to(self.device, non_blocking=True)
             # send to model
             with torch.inference_mode():
                 if images.ndim == 4:  # No augmentations
