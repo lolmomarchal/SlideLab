@@ -204,9 +204,13 @@ class SlideEncoding:
         writer = H5Writer(output_path)
         for batch in dataloader:
             # load images and preprocess them
-            batch_tiles, coord_batch = batch
-            batch_tiles = batch_tiles.to(self.device, non_blocking = True)
-            coord_batch = coord_batch.to(self.device, non_blocking = True)
+            batch_tiles, coord_batch = zip(*[(t, c) for t, c in batch if t is not None])
+            if len(batch_tiles) == 0:
+                continue
+            batch_tiles = torch.stack(batch_tiles).to(self.device, non_blocking=True)
+            coord_batch = torch.stack(coord_batch).to(self.device, non_blocking=True)
+
+
             for step in self.pipeline_steps:
                 batch_tiles, coord_batch = step(batch_tiles, vars_dict, coord_batch)
                 if batch_tiles.numel() == 0:
