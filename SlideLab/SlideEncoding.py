@@ -226,6 +226,7 @@ class SlideEncoding:
                 continue
 
             # apply transforms
+            batch_tiles.permute(0,3,1,2)
             images = torch.stack([self.transforms(img) for img in batch_tiles])  # B,C,H,W
             images = images.to(self.device, non_blocking=True)
             # send to model
