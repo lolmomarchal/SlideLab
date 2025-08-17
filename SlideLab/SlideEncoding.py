@@ -113,9 +113,10 @@ class SlideEncoding:
             else:
                 self.target = self._encode_no_saving_gpu
                 self.dataset = partial(
-                    GPUTileDataset,
-                    pipeline_steps=self.config.get("pipeline_steps"),
-                    transforms=self.transforms,
+                    CPUTileDataset,
+                    pipeline_steps=[],
+                    num_augmentations=self.config.get("augmentations"),
+                    transforms=None,
                     device=self.config.get("device", "cpu"))
 
     def __call__(self,slide, output_path, coords= None, mask= None, adjusted_size= None, desired_size= None):
@@ -196,7 +197,8 @@ class SlideEncoding:
         for batch in dataloader:
             # load images and preprocess them
             batch_tiles, coord_batch = batch
-            batch_tiles = batch_tiles.to(self.device)
+            batch_tiles = batch_tiles.to(self.device, non_blocking = True)
+            coord_batch = coord_batch.to(self.device, non_blocking = True)
             for step in self.pipeline_steps:
                 batch_tiles, coord_batch = step(batch_tiles, vars_dict, coord_batch)
                 if batch_tiles.numel() == 0:
