@@ -21,7 +21,7 @@ class H5Writer:
         self.high_qual = high_qual
         self.queue = queue.Queue(maxsize=64)
         self.thread = threading.Thread(target=self._write_worker)
-        self.thread.daemon = True
+        self.stop_event = threading.Event()
         self.thread.start()
 
     def _write_worker(self):
@@ -50,8 +50,10 @@ class H5Writer:
 
     def finalize(self, final_data):
         self.queue.put(('finalize', final_data))
+        self.queue.join()
         self.queue.put(None)
         self.thread.join()
+        self.stop_event.set()
 
 class SlideEncoding:
     def __init__(self, config, pipeline_steps):
@@ -127,23 +129,25 @@ class SlideEncoding:
             for batch in dataloader:
                 if batch is None:
                     continue
-                coords,images, tile_paths = batch
+                x,y,images, tile_paths = batch
                 images = images.to(self.device, non_blocking = True)
                 all_tile_paths.extend(tile_paths)
-                if images.ndim == 4:  # No augmentations
+                if images.ndim == 4:  # no augmentations
                     features = self.encoder(images).flatten(start_dim=1).cpu().numpy()
                     writer.add_data('features', features)
-                else:  # With augmentations
+                else:  # with augmentations
                     batch_size, num_versions = images.shape[:2]
                     features = self.encoder(images.flatten(0, 1)).flatten(start_dim=1)
                     features = features.view(batch_size, num_versions, -1).cpu().numpy()
                     writer.add_data('features', features)
                 # write coordinates
+                coords = np.stack([x.numpy(), y.numpy()], axis=1)
                 writer.add_data('coords', coords)
-                del coords, images, tile_paths
+                del x,y, images, tile_paths
         writer.finalize({
             'tile_path': np.array(all_tile_paths, dtype='S')
         })
+        del writer
         torch.cuda.empty_cache()
         del dataloader
 
