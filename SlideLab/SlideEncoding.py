@@ -80,7 +80,7 @@ class SlideEncoding:
             'shuffle': False,
             'num_workers': os.cpu_count(),
             'pin_memory': str(self.device) != "cpu",
-            'persistent_workers': True
+            'persistent_workers': False
         }
         # set up model
         self.encoder, self.transforms = Encoder(self.config.get("device"), self.config.get("feature_extractor"),
@@ -122,34 +122,40 @@ class SlideEncoding:
     def __call__(self,slide, output_path, coords= None, mask= None, adjusted_size= None, desired_size= None):
         self.target(slide,output_path,coords, mask, adjusted_size, desired_size)
 
-    def _encode_presaved(self,input_path, output_path, coords= None, mask= None, adjusted_size= None, desired_size= None):
+    def _encode_presaved(self, input_path, output_path, coords=None, mask=None, adjusted_size=None, desired_size=None):
         writer = H5Writer(output_path)
         dataloader = DataLoader(self.dataset(input_path), **self.loader_kwargs)
-        all_tile_paths =[]
-        with torch.inference_mode():
-            for batch in dataloader:
-                if batch is None:
-                    continue
-                coords,images, tile_paths = batch
-                images = images.to(self.device, non_blocking = True)
-                all_tile_paths.extend(tile_paths)
-                if images.ndim == 4:  # no augmentations
-                    features = self.encoder(images).flatten(start_dim=1).cpu().numpy()
-                    writer.add_data('features', features)
-                else:  # with augmentations
-                    batch_size, num_versions = images.shape[:2]
-                    features = self.encoder(images.flatten(0, 1)).flatten(start_dim=1)
-                    features = features.view(batch_size, num_versions, -1).cpu().numpy()
-                    writer.add_data('features', features)
-                # write coordinates
-                writer.add_data('coords', coords)
-                del coords, images, tile_paths
-        writer.finalize({
-            'tile_path': np.array(all_tile_paths, dtype='S')
-        })
-        del writer
-        torch.cuda.empty_cache()
-        del dataloader
+        all_tile_paths = []
+
+        try:
+            with torch.inference_mode():
+                for batch in dataloader:
+                    if batch is None:
+                        continue
+                    coords, images, tile_paths = batch
+                    images = images.to(self.device, non_blocking=True)
+                    all_tile_paths.extend(tile_paths)
+
+                    if images.ndim == 4:  # no augmentations
+                        features = self.encoder(images).flatten(start_dim=1).cpu().numpy()
+                        writer.add_data('features', features)
+                    else:  # with augmentations
+                        batch_size, num_versions = images.shape[:2]
+                        features = self.encoder(images.flatten(0, 1)).flatten(start_dim=1)
+                        features = features.view(batch_size, num_versions, -1).cpu().numpy()
+                        writer.add_data('features', features)
+
+                    writer.add_data('coords', coords)
+                    del coords, images, tile_paths
+
+        finally:
+            print(f"Finalizing writer for {output_path}...")
+            writer.finalize({
+                'tile_path': np.array(all_tile_paths, dtype='S')
+            })
+            del writer
+            torch.cuda.empty_cache()
+            del dataloader
 
     def _encode_nosaving_cpu(self, slide, output_path, coords, mask, adjusted_size, desired_size):
         writer = H5Writer(output_path)
