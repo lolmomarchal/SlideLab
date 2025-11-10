@@ -339,6 +339,17 @@ def save_h5(save_queue, h5_file, batch_size=128):
         # write any remaining in list
     if tiles_list:
         with h5py.File(h5_file, "a") as f:
+            # if the slide has low n tiles, might not be have objects ready, need to initialize tiles and coords here if needed
+            if "tiles" not in f:
+                tile_shape = tiles_list[0].shape
+                f.create_dataset("tiles", shape=(0, *tile_shape),
+                                 maxshape=(None, *tile_shape),
+                                 dtype=tiles_list[0].dtype, chunks=True)
+                coord_shape = coords_list[0].shape
+                f.create_dataset("coords", shape=(0, 2),
+                                 maxshape=(None, 2),
+                                 dtype="int32",
+                                 chunks=True)
             tiles_dataset = f["tiles"]
             coords_dataset = f["coords"]
             current_len = tiles_dataset.shape[0]
