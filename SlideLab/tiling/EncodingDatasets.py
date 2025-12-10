@@ -60,7 +60,7 @@ class TileEncoding_h5(Dataset):
         else:
             self.normalize = model_transforms
 
-         self.resize = transforms.Resize((224, 224))
+        self.resize = transforms.Resize((224, 224))
 
         # ===== Base Transform (original, no augmentation) =====
         self.base_transform = transforms.Compose([
