@@ -145,7 +145,9 @@ class SlideEncoding:
                         features = features.view(batch_size, num_versions, -1).cpu().numpy()
                         writer.add_data('features', features)
                     coords_np = coords.cpu().numpy() if torch.is_tensor(coords) else np.asarray(coords)
+                    coords_np = coords_np.reshape(coords_np.shape[0], -1)
                     writer.add_data('coords', coords_np)
+
                     del coords, images, tile_paths
 
         finally:
