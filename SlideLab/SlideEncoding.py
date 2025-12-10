@@ -14,6 +14,11 @@ import numpy as np
 import multiprocessing
 from tiling.no_saving.cpu import CPUTileDataset
 from concurrent.futures import ThreadPoolExecutor
+def collate_fn(batch):
+    coords_list, imgs_list, idx_list = zip(*batch)
+    imgs_tensor = torch.stack(imgs_list, dim=0)  # [B, 1+N, C, H, W]
+    coords_tensor = torch.tensor(coords_list, dtype=torch.float32)  # [B, 2]
+    return coords_tensor, imgs_tensor, idx_list
 
 class H5Writer:
     def __init__(self, output_path, high_qual=False):
@@ -46,15 +51,6 @@ class H5Writer:
                 self.queue.task_done()
 
     def add_data(self, key, data):
-        if not isinstance(data, np.ndarray):
-            data = np.asarray(data)
-    
-        if key in ['coords', 'features']:
-            if hasattr(self, f"_{key}_shape"):
-                assert data.shape[1:] == getattr(self, f"_{key}_shape"), \
-                    f"{key} mismatch. expected {getattr(self,f'_{key}_shape')} got {data.shape}"
-            else:
-                setattr(self, f"_{key}_shape", data.shape[1:])
         self.queue.put((key, data))
 
 
@@ -134,7 +130,7 @@ class SlideEncoding:
 
     def _encode_presaved(self, input_path, output_path, coords=None, mask=None, adjusted_size=None, desired_size=None):
         writer = H5Writer(output_path)
-        dataloader = DataLoader(self.dataset(input_path), **self.loader_kwargs)
+        dataloader = DataLoader(self.dataset(input_path), collate_fn=collate_fn,**self.loader_kwargs)
         all_tile_paths = []
 
         try:
@@ -154,10 +150,9 @@ class SlideEncoding:
                         features = self.encoder(images.flatten(0, 1)).flatten(start_dim=1)
                         features = features.view(batch_size, num_versions, -1).cpu().numpy()
                         writer.add_data('features', features)
-                    coords_np = coords.cpu().numpy() if torch.is_tensor(coords) else np.asarray(coords)
-                    coords_np = coords_np.reshape(coords_np.shape[0], -1)
+                    
+                    coords_np = np.array([list(c) for c in coords])
                     writer.add_data('coords', coords_np)
-
                     del coords, images, tile_paths
 
         finally:
