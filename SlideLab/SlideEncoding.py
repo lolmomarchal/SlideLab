@@ -46,7 +46,17 @@ class H5Writer:
                 self.queue.task_done()
 
     def add_data(self, key, data):
+        if not isinstance(data, np.ndarray):
+            data = np.asarray(data)
+    
+        if key in ['coords', 'features']:
+            if hasattr(self, f"_{key}_shape"):
+                assert data.shape[1:] == getattr(self, f"_{key}_shape"), \
+                    f"{key} mismatch. expected {getattr(self,f'_{key}_shape')} got {data.shape}"
+            else:
+                setattr(self, f"_{key}_shape", data.shape[1:])
         self.queue.put((key, data))
+
 
     def finalize(self, final_data):
         self.queue.put(('finalize', final_data))
