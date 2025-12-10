@@ -45,51 +45,79 @@ from torchvision import transforms
 
 class TileEncoding_h5(Dataset):
     def __init__(self, h5_file, device="cpu", num_augmentations=0,
-                 model_transforms=transforms.Normalize(mean=[0.485,0.406,0.406],
-                                                       std=[0.229,0.224,0.225])):
-        self.h5_file = h5_file  # Store file path instead of loading data
+                 model_transforms=None):
+
+        self.h5_file = h5_file
         self.device = device
         self.num_augmentations = num_augmentations
-        self.normalize = model_transforms
+        
+        # ====== Normalization (same as ImageNet) ======
+        if model_transforms is None:
+            self.normalize = transforms.Normalize(
+                mean=[0.485, 0.456, 0.406],
+                std=[0.229, 0.224, 0.225]
+            )
+        else:
+            self.normalize = model_transforms
 
-        # Initialize transforms
-        self.augmentations = transforms.Compose([
+         self.resize = transforms.Resize((224, 224))
+
+        # ===== Base Transform (original, no augmentation) =====
+        self.base_transform = transforms.Compose([
+            transforms.ToPILImage(),
+            self.resize,
             transforms.ToTensor(),
+            self.normalize
+        ])
+
+        # Augmentations, then normalize
+        self.augment_transform = transforms.Compose([
+            transforms.ToPILImage(),
+            transforms.Resize((224, 224)),
+            transforms.RandomHorizontalFlip(),
             transforms.RandomVerticalFlip(),
             transforms.RandomRotation(180),
-            transforms.ColorJitter(brightness=0.5, contrast=[0.2, 1.8], saturation=0, hue=0),
-            self.normalize
-        ])
-
-        self.no_augmentations = transforms.Compose([
+            transforms.ColorJitter(
+                brightness=0.5,
+                contrast=[0.2, 1.8],
+                saturation=0,
+                hue=0
+            ),
             transforms.ToTensor(),
             self.normalize
         ])
 
-        # Open file just to get length (then close immediately)
+        # Open file only to read length
         with h5py.File(self.h5_file, "r") as f:
             self._length = len(f["coords"])
 
     def __len__(self):
         return self._length
 
-    def __getitem__(self, item):
-        with h5py.File(self.h5_file, "r") as f:
-            try:
-                x, y = f["coords"][item]
-                image = f["tiles"][item]
+    def __getitem__(self, index):
+        try:
+            with h5py.File(self.h5_file, "r") as f:
+                x, y = f["coords"][index]
+                image_np = f["tiles"][index]  # numpy (H,W,3)
 
-                if self.num_augmentations == 0:
-                    return x, y, self.no_augmentations(image), item
+            # ---- Case 1: No augmentation ----
+            if self.num_augmentations == 0:
+                img_tensor = self.base_transform(image_np.copy())
+                return (x, y), img_tensor, index
 
-                augmented_images = [self.augmentations(image.copy()) for _ in range(self.num_augmentations)]
-                augmented_images.insert(0, self.no_augmentations(image))
-                stacked_images = torch.stack(augmented_images, dim=0)
-                return x,y, stacked_images, item
+            # ---- Case 2: Original + Augmented versions ----
+            versions = [self.base_transform(image_np.copy())]  # VERSION 0 = original
 
-            except Exception as e:
-                print(f"Error loading item {item}: {str(e)}")
-                raise
+            for _ in range(self.num_augmentations):
+                versions.append(self.augment_transform(image_np.copy()))
+
+            stacked = torch.stack(versions, dim=0)  # [1+N, C,H,W]
+            return (x,y), stacked, index
+
+        except Exception as e:
+            print(f"[TileEncoding_h5] Error index {index}: {e}")
+            raise
+
 # ======= version 2: Using the csv/png files
 
 class TilePreprocessing_png(Dataset):
