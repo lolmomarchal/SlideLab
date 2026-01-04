@@ -190,9 +190,11 @@ class SlideEncoding:
 
         finally:
             print(f"Finalizing writer for {output_path}...")
-            writer.finalize({
-                'tile_path': np.array(all_tile_paths, dtype='S')
-            })
+            writer.add("tile_path", np.array(all_tile_paths,dtype = "S"))
+            # writer.finalize({
+            #     'tile_path': np.array(all_tile_paths, dtype='S')
+            # })
+            writer.finalize()
             del writer
             torch.cuda.empty_cache()
             del dataloader
