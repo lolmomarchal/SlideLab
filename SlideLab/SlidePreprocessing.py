@@ -940,6 +940,7 @@ def main():
             t.refresh()
             sample_path = os.path.join(encoding_path, patient_id+".h5")
             if os.path.isfile(sample_path):
+                print(f"[SAMPLE EXISTS]: {sample_path}")
                 continue
 
             in_path = os.path.join(output_path, patient_id, patient_id + extension)
