@@ -16,7 +16,7 @@ from tiling.no_saving.cpu import CPUTileDataset
 from concurrent.futures import ThreadPoolExecutor
 def global_collate(batch):
     batch = [item for item in batch if item is not None]
-    if len(batch) == 0:
+    if len(batch) == 0:return None
     coords_list, imgs_list, paths_or_idx = zip(*batch)
     imgs_tensor = torch.stack(imgs_list, dim=0)
     coords_tensor = torch.tensor(np.array(coords_list), dtype=torch.float32)
