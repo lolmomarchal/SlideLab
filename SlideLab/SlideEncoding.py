@@ -182,7 +182,6 @@ class SlideEncoding:
 
                     writer.add_data('features', features)
                     writer.add_data('coords', np.array(batch_coords, dtype=np.float32))
-                    del coords, images, tile_paths
 
         finally:
             print(f"Finalizing writer for {output_path}...")
