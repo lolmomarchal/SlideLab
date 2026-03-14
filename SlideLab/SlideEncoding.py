@@ -14,7 +14,25 @@ import numpy as np
 import multiprocessing
 from tiling.no_saving.cpu import CPUTileDataset
 from concurrent.futures import ThreadPoolExecutor
+def global_collate(batch):
+    batch = [item for item in batch if item is not None]
+    if len(batch) == 0:
+    coords_list, imgs_list, paths_or_idx = zip(*batch)
+    imgs_tensor = torch.stack(imgs_list, dim=0)
+    coords_tensor = torch.tensor(np.array(coords_list), dtype=torch.float32)
+    
+    return coords_tensor, imgs_tensor, list(paths_or_idx)
 
+# --- Inside SlideEncoding._encode_presaved ---
+def _encode_presaved(self, input_path, output_path, coords=None, mask=None, adjusted_size=None, desired_size=None):
+    writer = H5Writer(output_path)
+    # Use the global_collate here
+    dataloader = DataLoader(
+        self.dataset(input_path), 
+        collate_fn=global_collate, 
+        **self.loader_kwargs
+    )
+    # ... rest of your code
 class H5Writer:
     def __init__(self, output_path):
         self.output_path = output_path
@@ -143,7 +161,7 @@ class SlideEncoding:
 
     def _encode_presaved(self, input_path, output_path, coords=None, mask=None, adjusted_size=None, desired_size=None):
         writer = H5Writer(output_path)
-        dataloader = DataLoader(self.dataset(input_path), collate_fn=collate_fn, **self.loader_kwargs)
+        dataloader = DataLoader(self.dataset(input_path), collate_fn=global_collate, **self.loader_kwargs)
         all_tile_paths = []
 
         try:
