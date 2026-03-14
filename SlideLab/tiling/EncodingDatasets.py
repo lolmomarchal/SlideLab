@@ -50,7 +50,7 @@ class TileEncoding_h5(Dataset):
         self.h5_file = h5_file
         self.device = device
         self.num_augmentations = num_augmentations
-        
+        self.f = None
         # ====== Normalization (same as ImageNet) ======
         if model_transforms is None:
             self.normalize = transforms.Normalize(
@@ -95,25 +95,20 @@ class TileEncoding_h5(Dataset):
         return self._length
 
     def __getitem__(self, index):
+        if self.f is None:
+            self.f = h5py.File(self.h5_file, "r", swmr=True)
         try:
-            with h5py.File(self.h5_file, "r") as f:
-                x, y = f["coords"][index]
-                image_np = f["tiles"][index]  # numpy (H,W,3)
-
-            # ---- Case 1: No augmentation ----
+            coords = self.f["coords"][index]
+            image_np = self.f["tiles"][index]
+            original = self.base_transform(image_np)
             if self.num_augmentations == 0:
-                img_tensor = self.base_transform(image_np.copy())
-                return (x, y), img_tensor, index
+                return coords, original, index
+            
 
-            # ---- Case 2: Original + Augmented versions ----
-            versions = [self.base_transform(image_np.copy())]  # VERSION 0 = original
-
+            versions = [original]
             for _ in range(self.num_augmentations):
-                versions.append(self.augment_transform(image_np.copy()))
-
-            stacked = torch.stack(versions, dim=0)  # [1+N, C,H,W]
-            return (x,y), stacked, index
-
+                versions.append(self.augment_transform(image_np))
+            return coords, torch.stack(versions), index
         except Exception as e:
             print(f"[TileEncoding_h5] Error index {index}: {e}")
             raise
