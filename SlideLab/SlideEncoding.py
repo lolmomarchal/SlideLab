@@ -14,85 +14,65 @@ import numpy as np
 import multiprocessing
 from tiling.no_saving.cpu import CPUTileDataset
 from concurrent.futures import ThreadPoolExecutor
-def collate_fn(batch):
-    coords_list, imgs_list, idx_list = zip(*batch)
-    imgs_tensor = torch.stack(imgs_list, dim=0)  # [B, 1+N, C, H, W]
-    coords_tensor = torch.tensor(coords_list, dtype=torch.float32)  # [B, 2]
-    return coords_tensor, imgs_tensor, idx_list
-
-import h5py
-import os
-import threading
-import queue
-import numpy as np
-from filelock import FileLock
 
 class H5Writer:
-    def __init__(self, output_path, compression="gzip"):
+    def __init__(self, output_path):
         self.output_path = output_path
-        self.tmp_path = output_path + ".tmp"
-        self.lock_path = output_path + ".lock"
-        self.compression = compression
-
-        self.queue = queue.Queue(maxsize=128)
-        self.thread = threading.Thread(target=self._worker, daemon=True)
-
-        self._closed = False
-        self._lock = FileLock(self.lock_path)
-
-        # Hard guard against overwrite
-        if os.path.exists(self.output_path):
-            raise RuntimeError(f"HDF5 already exists: {self.output_path}")
-
+        self.queue = queue.Queue(maxsize=128) 
+        self.thread = threading.Thread(target=self._write_worker, daemon=True)
+        self.error_occurred = threading.Event()
         self.thread.start()
 
-    def _worker(self):
-        with self._lock:
-            with h5py.File(self.tmp_path, "x") as hdf:
-                hdf.attrs["completed"] = False
-
+    def _write_worker(self):
+        try:
+            with h5py.File(self.output_path, 'w') as hdf:
                 while True:
                     task = self.queue.get()
                     if task is None:
+                        self.queue.task_done()
                         break
+                    
+                    try:
+                        key, data = task
+                        if key == 'finalize_metadata':
+                            for k, v in data.items():
+                                if k not in hdf:
+                                    hdf.create_dataset(k, data=v, compression='gzip')
+                        else:
+                            if torch.is_tensor(data):
+                                data = data.detach().cpu().numpy()
+                            
+                            if key not in hdf:
+                                maxshape = (None,) + data.shape[1:]
+                                hdf.create_dataset(key, data=data, maxshape=maxshape,
+                                                 compression='gzip', chunks=True)
+                            else:
+                                # Resize and append
+                                current_shape = hdf[key].shape[0]
+                                hdf[key].resize((current_shape + data.shape[0]), axis=0)
+                                hdf[key][current_shape:] = data
+                    except Exception as e:
+                        print(f"\n[H5Writer Error]: {e}")
+                        self.error_occurred.set()
+                    finally:
+                        self.queue.task_done()
+        except Exception as e:
+            print(f"\n[H5Writer Critical Disk Error]: {e}")
 
-                    key, data = task
+    def add_data(self, key, data):
+        if not self.error_occurred.is_set():
+            if torch.is_tensor(data):
+                data = data.detach().cpu().numpy()
+            self.queue.put((key, data))
 
-                    if key not in hdf:
-                        maxshape = (None,) + data.shape[1:]
-                        hdf.create_dataset(
-                            key,
-                            data=data,
-                            maxshape=maxshape,
-                            chunks=True,
-                            compression=self.compression,
-                        )
-                    else:
-                        ds = hdf[key]
-                        n = ds.shape[0]
-                        ds.resize(n + data.shape[0], axis=0)
-                        ds[n:] = data
-
-                    self.queue.task_done()
-
-                # mark completion
-                hdf.attrs["completed"] = True
-                hdf.flush()
-
-        # atomic promotion
-        os.replace(self.tmp_path, self.output_path)
-
-    def add(self, key, data):
-        if self._closed:
-            raise RuntimeError("Cannot write after finalize")
-        self.queue.put((key, np.asarray(data)))
-
-    def finalize(self):
-        if self._closed:
-            return
+    def finalize(self, final_metadata=None):
+        if final_metadata:
+            self.queue.put(('finalize_metadata', final_metadata))
+        
+        self.queue.join()
         self.queue.put(None)
-        self.thread.join()
-        self._closed = True
+        self.thread.join(timeout=10)
+        print(f"File {self.output_path} closed successfully.")
 
 class SlideEncoding:
     def __init__(self, config, pipeline_steps):
@@ -163,38 +143,34 @@ class SlideEncoding:
 
     def _encode_presaved(self, input_path, output_path, coords=None, mask=None, adjusted_size=None, desired_size=None):
         writer = H5Writer(output_path)
-        dataloader = DataLoader(self.dataset(input_path), collate_fn=collate_fn,**self.loader_kwargs)
+        dataloader = DataLoader(self.dataset(input_path), collate_fn=collate_fn, **self.loader_kwargs)
         all_tile_paths = []
 
         try:
             with torch.inference_mode():
                 for batch in dataloader:
-                    if batch is None:
-                        continue
-                    coords, images, tile_paths = batch
+                    if batch is None: continue
+                    batch_coords, images, tile_paths = batch
                     images = images.to(self.device, non_blocking=True)
                     all_tile_paths.extend(tile_paths)
 
-                    if images.ndim == 4:  # no augmentations
-                        features = self.encoder(images).flatten(start_dim=1).cpu().numpy()
-                        writer.add('features', features)
-                    else:  # with augmentations
+                    if images.ndim == 4:  
+                        features = self.encoder(images).flatten(1).cpu().numpy()
+                        features = features[:, np.newaxis, :] 
+                    else:  # [B, N, C, H, W]
                         batch_size, num_versions = images.shape[:2]
-                        features = self.encoder(images.flatten(0, 1)).flatten(start_dim=1)
+                        features = self.encoder(images.flatten(0, 1)).flatten(1)
                         features = features.view(batch_size, num_versions, -1).cpu().numpy()
-                        writer.add('features', features)
-                    
-                    coords_np = np.array([list(c) for c in coords])
-                    writer.add('coords', coords_np)
+
+                    writer.add_data('features', features)
+                    writer.add_data('coords', np.array(batch_coords, dtype=np.float32))
                     del coords, images, tile_paths
 
         finally:
             print(f"Finalizing writer for {output_path}...")
-            writer.add("tile_path", np.array(all_tile_paths,dtype = "S"))
-            # writer.finalize({
-            #     'tile_path': np.array(all_tile_paths, dtype='S')
-            # })
-            writer.finalize()
+            writer.finalize({
+                'tile_path': np.array(all_tile_paths, dtype='S')
+            })
             del writer
             torch.cuda.empty_cache()
             del dataloader
@@ -229,8 +205,8 @@ class SlideEncoding:
                 continue
             with torch.inference_mode():
                 features = self.encoder(images).flatten(1).cpu().numpy()
-                writer.add('features', features)
-                writer.add('coords', coords.cpu().numpy())
+                writer.add_data('features', features)
+                writer.add_data('coords', coords.cpu().numpy())
 
         # Finalize so data is actually written and file is closed
         writer.finalize({})
@@ -280,13 +256,13 @@ class SlideEncoding:
             with torch.inference_mode():
                 if images.ndim == 4:  # No augmentations
                     features = self.encoder(images).flatten(start_dim=1).cpu().numpy()
-                    writer.add('features', features)
+                    writer.add_data('features', features)
                 else:  # With augmentations
                     batch_size, num_versions = images.shape[:2]
                     features = self.encoder(images.flatten(0, 1)).flatten(start_dim=1)
                     features = features.view(batch_size, num_versions, -1).cpu().numpy()
-                    writer.add('features', features.cpu().numpy())
-                writer.add('coords', coord_batch.cpu().numpy())
+                    writer.add_data('features', features.cpu().numpy())
+                writer.add_data('coords', coord_batch.cpu().numpy())
             del coord_batch, images,batch_tiles
         torch.cuda.empty_cache()
         del dataloader
