@@ -1,4 +1,3 @@
-# external imports
 import os
 import time
 import multiprocessing
