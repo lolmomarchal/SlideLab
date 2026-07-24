@@ -27,10 +27,6 @@ os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 """
 SlidePreprocessing.py
 
-Author: Lorenzo Olmo Marchal
-Created: 3/5/2024
-Last Updated: 8/9/2025
-
 Description:
 This script automates the preprocessing and normalization of Whole Slide Images (WSI) in digital histopathology. 
 Input:
